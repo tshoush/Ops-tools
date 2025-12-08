@@ -68,11 +68,30 @@ class NetworkCommand(BaseCommand):
         )
 
         if not networks:
-            return {
-                "error": f"Network {query} not found",
-                "query": query,
-                "network_view": network_view
-            }
+            # Check if network exists in other views
+            other_views = []
+            if not all_views:
+                all_networks = self.client.get(
+                    "network",
+                    params={"network": query},
+                    return_fields=["network", "network_view"]
+                )
+                other_views = [n.get("network_view") for n in all_networks if n.get("network_view")]
+
+            if other_views:
+                return {
+                    "error": f"Network {query} not found in view '{network_view}'",
+                    "found_in_views": other_views,
+                    "query": query,
+                    "network_view": network_view,
+                    "hint": f"Network exists in: {', '.join(other_views)}"
+                }
+            else:
+                return {
+                    "error": f"Network {query} not found",
+                    "query": query,
+                    "network_view": network_view
+                }
 
         network = networks[0]
         object_ref = network.get("_ref", "")

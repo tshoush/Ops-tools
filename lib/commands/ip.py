@@ -51,11 +51,30 @@ class IPCommand(BaseCommand):
         )
 
         if not addresses:
-            return {
-                "error": f"IP {query} not found or not in managed range",
-                "query": query,
-                "network_view": network_view
-            }
+            # Check if IP exists in other views
+            other_views = []
+            if not all_views:
+                all_addresses = self.client.get(
+                    "ipv4address",
+                    params={"ip_address": query},
+                    return_fields=["ip_address", "network_view"]
+                )
+                other_views = [a.get("network_view") for a in all_addresses if a.get("network_view")]
+
+            if other_views:
+                return {
+                    "error": f"IP {query} not found in view '{network_view}'",
+                    "found_in_views": other_views,
+                    "query": query,
+                    "network_view": network_view,
+                    "hint": f"IP exists in: {', '.join(other_views)}"
+                }
+            else:
+                return {
+                    "error": f"IP {query} not found or not in managed range",
+                    "query": query,
+                    "network_view": network_view
+                }
 
         addr = addresses[0]
         object_ref = addr.get("_ref", "")
