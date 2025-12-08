@@ -20,17 +20,15 @@ class NetworkCommand(BaseCommand):
         "dhcp_utilization", "dynamic_hosts", "static_hosts"
     ]
 
+    # Core range fields supported across WAPI versions
     RANGE_RETURN_FIELDS = [
         "start_addr", "end_addr", "server_association_type",
         "member", "failover_association", "options", "comment",
-        "disable", "name", "bootfile", "bootserver",
-        "deny_all_clients", "deny_bootp", "ignore_client_requested_options",
-        "pxe_lease_time", "option"
+        "disable", "name"
     ]
 
     MEMBER_DHCP_FIELDS = [
-        "host_name", "ipv4addr", "enable_dhcp",
-        "options", "option"
+        "host_name", "ipv4addr", "enable_dhcp"
     ]
 
     def execute(self, query: str, **kwargs) -> Dict[str, Any]:
