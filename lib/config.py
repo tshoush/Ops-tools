@@ -26,7 +26,8 @@ DEFAULT_CONFIG = {
         "enabled": False,
         "host": "",
         "token": "",
-        "index": "infoblox_audit"
+        "index": "infoblox_audit",
+        "sourcetype": ""
     },
     "output": {
         "default_dir": "./output",
@@ -202,23 +203,32 @@ def run_first_time_setup() -> Dict[str, Any]:
 
     config["infoblox"] = ib
 
-    # Splunk (optional)
+    # Splunk (optional but recommended for audit)
     print(f"\n  {bold('Splunk Integration (Optional)')}\n")
+    print(f"    {dim('Splunk provides audit history: who created/modified objects')}\n")
 
     splunk = config["splunk"]
     if prompt_confirm("Enable Splunk audit integration?", default=False):
         splunk["enabled"] = True
         splunk["host"] = prompt_input(
-            "Splunk Host",
-            hint="Example: splunk.example.com:8089"
+            "Splunk Host:Port",
+            hint="Example: splunk.marriott.com:8089"
         )
         splunk["token"] = prompt_input(
-            "Splunk HEC Token",
+            "Splunk API Token",
+            hint="Bearer token for Splunk REST API",
             secret=True
         )
         splunk["index"] = prompt_input(
             "Splunk Index",
+            hint="Index where InfoBlox audit logs are stored",
             default="infoblox_audit"
+        )
+        splunk["sourcetype"] = prompt_input(
+            "Splunk Sourcetype",
+            hint="Optional - leave empty for any",
+            default="",
+            required=False
         )
     config["splunk"] = splunk
 
@@ -313,13 +323,16 @@ def run_config_editor() -> Dict[str, Any]:
     )
 
     if splunk["enabled"]:
+        print(f"    {dim('Splunk is used for audit history (who created/modified objects)')}")
         splunk["host"] = prompt_input(
-            "Splunk Host",
+            "Splunk Host:Port",
+            hint="Example: splunk.marriott.com:8089",
             default=splunk.get("host", "")
         )
         current_token = splunk.get("token", "")
         new_token = prompt_input(
-            "Splunk Token",
+            "Splunk API Token",
+            hint="Bearer token for Splunk REST API",
             default="********" if current_token else "",
             secret=True,
             required=False
@@ -328,7 +341,14 @@ def run_config_editor() -> Dict[str, Any]:
             splunk["token"] = new_token
         splunk["index"] = prompt_input(
             "Splunk Index",
+            hint="Index where InfoBlox audit logs are stored",
             default=splunk.get("index", "infoblox_audit")
+        )
+        splunk["sourcetype"] = prompt_input(
+            "Splunk Sourcetype",
+            hint="Optional - leave empty for any sourcetype",
+            default=splunk.get("sourcetype", ""),
+            required=False
         )
 
     config["splunk"] = splunk

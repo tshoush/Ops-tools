@@ -4,50 +4,46 @@ Tests for audit module.
 
 import pytest
 from pathlib import Path
-from unittest.mock import patch, Mock
 from datetime import datetime
+from unittest.mock import patch, Mock, MagicMock
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.audit import (
-    AuditClient,
-    get_audit_for_object,
-    format_audit_summary
-)
+from lib.audit import AuditClient, get_audit_for_object, format_audit_summary
 
 
 class TestAuditClient:
     """Tests for AuditClient class."""
 
     @pytest.fixture
-    def mock_audit_entries(self):
-        """Mock audit log entries."""
-        return [
-            {
-                "timestamp": "1701475200",
-                "admin": "jsmith",
-                "action": "UPDATE",
-                "object_type": "NETWORK",
-                "object_name": "10.20.30.0/24",
-                "message": "Modified comment"
-            },
-            {
-                "timestamp": "1699574400",
-                "admin": "admin",
-                "action": "INSERT",
-                "object_type": "NETWORK",
-                "object_name": "10.20.30.0/24",
-                "message": "Created network"
+    def mock_config_splunk_disabled(self):
+        """Config with Splunk disabled."""
+        return {
+            "splunk": {
+                "enabled": False,
+                "host": "",
+                "token": "",
+                "index": "infoblox_audit"
             }
-        ]
+        }
 
-    def test_get_object_audit_success(self, mock_audit_entries):
-        """Test successful audit retrieval."""
-        mock_client = Mock()
-        mock_client.get = Mock(return_value=mock_audit_entries)
+    @pytest.fixture
+    def mock_config_splunk_enabled(self):
+        """Config with Splunk enabled."""
+        return {
+            "splunk": {
+                "enabled": True,
+                "host": "splunk.example.com:8089",
+                "token": "test-token",
+                "index": "infoblox_audit",
+                "sourcetype": ""
+            }
+        }
 
-        with patch('lib.wapi.get_client', return_value=mock_client):
+    def test_get_object_audit_splunk_disabled(self, mock_config_splunk_disabled):
+        """Test audit when Splunk is disabled."""
+        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
             result = client.get_object_audit(
                 object_ref="network/test:10.20.30.0/24/default",
@@ -55,53 +51,117 @@ class TestAuditClient:
                 object_name="10.20.30.0/24"
             )
 
-            assert "wapi_audit" in result
-            assert "timestamps" in result
-            assert result["last_modified_by"] == "jsmith"
+            assert result["source"] == "none"
+            assert "message" in result
+            assert "Splunk" in result["message"]
 
-    def test_get_object_audit_extracts_creation(self, mock_audit_entries):
-        """Test audit extraction finds creation entry."""
-        mock_client = Mock()
-        mock_client.get = Mock(return_value=mock_audit_entries)
+    def test_get_object_audit_splunk_enabled(self, mock_config_splunk_enabled):
+        """Test audit when Splunk is enabled."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '{"result": {"_time": "2024-01-15T10:30:00", "admin": "jsmith", "action": "INSERT"}}'
 
-        with patch('lib.wapi.get_client', return_value=mock_client):
+        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
+            with patch('lib.audit.requests.post', return_value=mock_response):
+                client = AuditClient()
+                result = client.get_object_audit(
+                    object_ref="network/test:10.20.30.0/24/default",
+                    object_type="NETWORK",
+                    object_name="10.20.30.0/24"
+                )
+
+                assert result["source"] == "splunk"
+                assert "splunk_audit" in result
+
+    def test_extract_search_term_network(self):
+        """Test extracting search term from network ref."""
+        with patch('lib.audit.load_config', return_value={"splunk": {"enabled": False}}):
             client = AuditClient()
-            result = client.get_object_audit(
-                object_ref="network/test:10.20.30.0/24/default",
-                object_type="NETWORK"
-            )
 
-            # Should find INSERT action as creation
-            assert result.get("created_by") == "admin"
+            # Test network CIDR extraction
+            term = client._extract_search_term("network/ZG5zLm5ldH:10.20.30.0/24/default")
+            assert term == "10.20.30.0/24"
 
-    def test_get_object_audit_empty(self):
-        """Test audit retrieval with no results."""
-        mock_client = Mock()
-        mock_client.get = Mock(return_value=[])
-
-        with patch('lib.wapi.get_client', return_value=mock_client):
+    def test_extract_search_term_simple(self):
+        """Test extracting search term from simple ref."""
+        with patch('lib.audit.load_config', return_value={"splunk": {"enabled": False}}):
             client = AuditClient()
-            result = client.get_object_audit(
-                object_ref="network/test:10.20.30.0/24/default",
-                object_type="NETWORK"
-            )
 
-            assert result["wapi_audit"] == []
+            # Test simple extraction
+            term = client._extract_search_term("zone/ZG5z:example.com")
+            assert term == "example.com"
 
-    def test_get_wapi_audit_error_handling(self):
-        """Test WAPI audit error handling."""
-        mock_client = Mock()
-        mock_client.get = Mock(side_effect=Exception("API Error"))
-
-        with patch('lib.wapi.get_client', return_value=mock_client):
+    def test_extract_search_term_none(self):
+        """Test extracting search term from None."""
+        with patch('lib.audit.load_config', return_value={"splunk": {"enabled": False}}):
             client = AuditClient()
-            result = client._get_wapi_audit(
-                object_ref="network/test",
-                object_type="NETWORK"
-            )
+            term = client._extract_search_term(None)
+            assert term is None
 
-            # Should return empty list on error (graceful degradation)
-            assert result == []
+    def test_extract_audit_metadata(self, mock_config_splunk_enabled):
+        """Test extracting metadata from Splunk results."""
+        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
+            client = AuditClient()
+            audit_info = {"timestamps": {}, "created_by": None, "last_modified_by": None}
+
+            splunk_results = [
+                {"_time": "2024-01-10T08:00:00", "admin": "creator", "action": "INSERT"},
+                {"_time": "2024-01-15T10:30:00", "admin": "modifier", "action": "UPDATE"}
+            ]
+
+            client._extract_audit_metadata(audit_info, splunk_results)
+
+            assert audit_info["created_by"] == "creator"
+            assert audit_info["last_modified_by"] == "modifier"
+            assert "2024-01-10" in audit_info["timestamps"]["created"]
+            assert "2024-01-15" in audit_info["timestamps"]["last_modified"]
+
+    def test_normalize_splunk_result(self, mock_config_splunk_enabled):
+        """Test normalizing Splunk result."""
+        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
+            client = AuditClient()
+
+            raw_result = {
+                "_time": "2024-01-15T10:30:00",
+                "admin": "testuser",
+                "action": "UPDATE",
+                "object_type": "NETWORK",
+                "_raw": "Some raw log message"
+            }
+
+            normalized = client._normalize_splunk_result(raw_result)
+
+            assert normalized["admin"] == "testuser"
+            assert normalized["action"] == "UPDATE"
+            assert normalized["object_type"] == "NETWORK"
+            assert "timestamp" in normalized
+
+    def test_splunk_connection_error(self, mock_config_splunk_enabled):
+        """Test handling Splunk connection error."""
+        import requests
+
+        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
+            with patch('lib.audit.requests.post', side_effect=requests.exceptions.ConnectionError()):
+                client = AuditClient()
+                results = client._get_splunk_audit("10.20.30.0/24", "NETWORK")
+
+                assert len(results) == 1
+                assert "error" in results[0]
+                assert "connect" in results[0]["error"].lower()
+
+    def test_splunk_auth_failure(self, mock_config_splunk_enabled):
+        """Test handling Splunk authentication failure."""
+        mock_response = Mock()
+        mock_response.status_code = 401
+
+        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
+            with patch('lib.audit.requests.post', return_value=mock_response):
+                client = AuditClient()
+                results = client._get_splunk_audit("10.20.30.0/24", "NETWORK")
+
+                assert len(results) == 1
+                assert "error" in results[0]
+                assert "authentication" in results[0]["error"].lower()
 
 
 class TestFormatAuditSummary:
@@ -111,45 +171,42 @@ class TestFormatAuditSummary:
         """Test formatting complete audit info."""
         audit_info = {
             "timestamps": {
-                "created": 1699574400,
-                "last_modified": 1701475200
+                "created": "2024-01-10T08:00:00",
+                "last_modified": "2024-01-15T10:30:00"
             },
             "created_by": "admin",
             "last_modified_by": "jsmith"
         }
 
-        result = format_audit_summary(audit_info)
+        summary = format_audit_summary(audit_info)
 
-        assert result["Created By"] == "admin"
-        assert result["Modified By"] == "jsmith"
-        assert result["Created"] != "N/A"
-        assert result["Last Modified"] != "N/A"
+        assert summary["Created By"] == "admin"
+        assert summary["Modified By"] == "jsmith"
 
     def test_format_empty_audit(self):
         """Test formatting empty audit info."""
-        audit_info = {}
+        audit_info = {"timestamps": {}}
 
-        result = format_audit_summary(audit_info)
+        summary = format_audit_summary(audit_info)
 
-        assert result["Created"] == "N/A"
-        assert result["Created By"] == "N/A"
-        assert result["Last Modified"] == "N/A"
-        assert result["Modified By"] == "N/A"
+        assert summary["Created"] == "N/A"
+        assert summary["Created By"] == "N/A"
+        assert summary["Last Modified"] == "N/A"
+        assert summary["Modified By"] == "N/A"
 
     def test_format_partial_audit(self):
         """Test formatting partial audit info."""
         audit_info = {
             "timestamps": {
-                "created": 1699574400
+                "last_modified": "2024-01-15T10:30:00"
             },
-            "created_by": "admin"
+            "last_modified_by": "jsmith"
         }
 
-        result = format_audit_summary(audit_info)
+        summary = format_audit_summary(audit_info)
 
-        assert result["Created By"] == "admin"
-        assert result["Last Modified"] == "N/A"
-        assert result["Modified By"] == "N/A"
+        assert summary["Created"] == "N/A"
+        assert summary["Modified By"] == "jsmith"
 
 
 class TestGetAuditForObject:
@@ -157,15 +214,18 @@ class TestGetAuditForObject:
 
     def test_get_audit_for_object(self):
         """Test convenience function."""
-        mock_client = Mock()
-        mock_client.get = Mock(return_value=[])
+        mock_config = {
+            "splunk": {
+                "enabled": False
+            }
+        }
 
-        with patch('lib.wapi.get_client', return_value=mock_client):
+        with patch('lib.audit.load_config', return_value=mock_config):
             result = get_audit_for_object(
-                object_ref="network/test",
+                object_ref="network/test:10.20.30.0/24/default",
                 object_type="NETWORK",
-                object_name="10.0.0.0/24"
+                object_name="10.20.30.0/24"
             )
 
-            assert "wapi_audit" in result
+            assert "source" in result
             assert "timestamps" in result

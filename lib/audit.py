@@ -1,32 +1,33 @@
 """
-Audit information retrieval from InfoBlox WAPI and Splunk.
+Audit information retrieval from Splunk.
 
-InfoBlox stores audit data in the auditlog object.
-Splunk can be queried for historical audit trail.
+Note: InfoBlox WAPI does not expose 'auditlog' as a queryable object type.
+Audit information must be retrieved from Splunk (or other SIEM) where
+InfoBlox forwards its audit logs via syslog.
+
+To enable audit in your environment:
+1. Configure InfoBlox to send audit logs to Splunk via syslog
+2. Enable Splunk integration in DDI Toolkit config
+3. Provide Splunk host, token, and index name
 """
 
+import json
 import requests
+import urllib3
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
-from .config import load_config, decode_password
+from .config import load_config
+
+# Suppress SSL warnings for Splunk
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class AuditClient:
-    """Retrieve audit information from InfoBlox and Splunk."""
+    """Retrieve audit information from Splunk."""
 
     def __init__(self):
         """Initialize audit client."""
         self.config = load_config()
-        self._wapi_client = None
-        self._splunk_session = None
-
-    @property
-    def wapi_client(self):
-        """Lazy load WAPI client."""
-        if self._wapi_client is None:
-            from .wapi import get_client
-            self._wapi_client = get_client()
-        return self._wapi_client
 
     def get_object_audit(
         self,
@@ -36,115 +37,120 @@ class AuditClient:
         max_results: int = 10
     ) -> Dict[str, Any]:
         """
-        Get audit information for an object.
+        Get audit information for an object from Splunk.
 
         Args:
-            object_ref: The _ref of the object
+            object_ref: The _ref of the object (used to extract search term)
             object_type: Object type (network, zone, etc.)
             object_name: Object name/identifier for Splunk search
 
         Returns:
-            Dict with audit information from WAPI and optionally Splunk
+            Dict with audit information from Splunk
         """
         audit_info = {
-            "wapi_audit": self._get_wapi_audit(object_ref, object_type, max_results),
+            "splunk_audit": [],
             "timestamps": {},
-            "last_modified_by": None
+            "created_by": None,
+            "last_modified_by": None,
+            "source": "splunk"
         }
-
-        # Extract key timestamps from audit
-        wapi_audit = audit_info["wapi_audit"]
-        if wapi_audit:
-            # Most recent action
-            latest = wapi_audit[0] if wapi_audit else None
-            if latest:
-                audit_info["last_modified_by"] = latest.get("admin")
-                audit_info["timestamps"]["last_modified"] = latest.get("timestamp")
-
-            # Find creation (INSERT action)
-            for entry in reversed(wapi_audit):
-                if entry.get("action") == "INSERT":
-                    audit_info["timestamps"]["created"] = entry.get("timestamp")
-                    audit_info["created_by"] = entry.get("admin")
-                    break
 
         # Get Splunk audit if enabled
         splunk_config = self.config.get("splunk", {})
-        if splunk_config.get("enabled") and object_name:
-            audit_info["splunk_audit"] = self._get_splunk_audit(
-                object_name, object_type, max_results
-            )
+        if not splunk_config.get("enabled"):
+            audit_info["source"] = "none"
+            audit_info["message"] = "Splunk integration not enabled. Configure via [C] Configuration menu."
+            return audit_info
+
+        # Determine search term
+        search_term = object_name
+        if not search_term and object_ref:
+            # Extract searchable part from ref
+            # e.g., "network/ZG5zLm5ldH:10.0.0.0/8/default" -> "10.0.0.0/8"
+            search_term = self._extract_search_term(object_ref)
+
+        if not search_term:
+            return audit_info
+
+        # Query Splunk
+        splunk_results = self._get_splunk_audit(
+            search_term, object_type, max_results
+        )
+        audit_info["splunk_audit"] = splunk_results
+
+        # Extract timestamps and users from Splunk results
+        self._extract_audit_metadata(audit_info, splunk_results)
 
         return audit_info
 
-    def _get_wapi_audit(
+    def _extract_search_term(self, object_ref: str) -> Optional[str]:
+        """Extract searchable term from object reference."""
+        if not object_ref:
+            return None
+
+        parts = object_ref.split(":")
+        if len(parts) > 1:
+            ref_data = parts[1]
+            # Handle network CIDR (e.g., 10.0.0.0/8/default -> 10.0.0.0/8)
+            if "/" in ref_data:
+                segments = ref_data.split("/")
+                if len(segments) >= 2:
+                    return f"{segments[0]}/{segments[1]}"
+            return ref_data.split("/")[0]
+        return None
+
+    def _extract_audit_metadata(
         self,
-        object_ref: str,
-        object_type: str = None,
-        max_results: int = 10
-    ) -> List[Dict]:
-        """
-        Get audit log entries from InfoBlox WAPI.
+        audit_info: Dict[str, Any],
+        splunk_results: List[Dict]
+    ):
+        """Extract creation/modification metadata from Splunk results."""
+        if not splunk_results or isinstance(splunk_results[0], dict) and splunk_results[0].get("error"):
+            return
 
-        Note: The auditlog object may not be available in all WAPI versions
-        or may require specific permissions. This method handles failures
-        gracefully by returning an empty list.
-        """
-        try:
-            # Query auditlog for this object
-            params = {"_max_results": str(max_results)}
+        # Sort by timestamp to find first (created) and last (modified)
+        sorted_results = []
+        for entry in splunk_results:
+            ts = entry.get("_time") or entry.get("timestamp") or entry.get("_indextime")
+            if ts:
+                sorted_results.append((ts, entry))
 
-            if object_type:
-                params["object_type"] = object_type.upper()
+        if not sorted_results:
+            return
 
-            # Try to extract object name from ref for search
-            if object_ref:
-                # Extract searchable part from ref
-                # e.g., "network/ZG5zLm5ldH:10.0.0.0/8/default" -> "10.0.0.0/8"
-                parts = object_ref.split(":")
-                if len(parts) > 1:
-                    name_part = parts[1].split("/")[0]
-                    if "/" in parts[1]:
-                        # Network CIDR
-                        name_part = "/".join(parts[1].split("/")[:2])
-                    params["object_name~"] = name_part
+        sorted_results.sort(key=lambda x: x[0])
 
-            audit_entries = self.wapi_client.get(
-                "auditlog",
-                params=params,
-                return_fields=[
-                    "timestamp", "admin", "action", "object_type",
-                    "object_name", "message"
-                ]
-            )
+        # First entry = creation
+        first_ts, first_entry = sorted_results[0]
+        audit_info["timestamps"]["created"] = first_ts
+        audit_info["created_by"] = (
+            first_entry.get("admin") or
+            first_entry.get("user") or
+            first_entry.get("src_user") or
+            first_entry.get("Admin")
+        )
 
-            # Format timestamps
-            for entry in audit_entries:
-                if entry.get("timestamp"):
-                    try:
-                        # InfoBlox timestamp format
-                        ts = datetime.fromtimestamp(int(entry["timestamp"]))
-                        entry["timestamp_formatted"] = ts.strftime("%Y-%m-%d %H:%M:%S")
-                    except (ValueError, TypeError):
-                        entry["timestamp_formatted"] = entry.get("timestamp")
-
-            return audit_entries
-
-        except Exception:
-            # auditlog object not available in this WAPI version or no permission
-            # Return empty list - audit info will show as N/A
-            return []
+        # Last entry = most recent modification
+        last_ts, last_entry = sorted_results[-1]
+        audit_info["timestamps"]["last_modified"] = last_ts
+        audit_info["last_modified_by"] = (
+            last_entry.get("admin") or
+            last_entry.get("user") or
+            last_entry.get("src_user") or
+            last_entry.get("Admin")
+        )
 
     def _get_splunk_audit(
         self,
         object_name: str,
         object_type: str = None,
-        max_results: int = 10
+        max_results: int = 20
     ) -> List[Dict]:
         """
         Get audit entries from Splunk.
 
         Searches the configured Splunk index for InfoBlox audit events.
+        Supports multiple common InfoBlox audit log formats.
         """
         splunk_config = self.config.get("splunk", {})
 
@@ -154,16 +160,36 @@ class AuditClient:
         host = splunk_config.get("host", "")
         token = splunk_config.get("token", "")
         index = splunk_config.get("index", "infoblox_audit")
+        sourcetype = splunk_config.get("sourcetype", "")
 
         if not host or not token:
-            return [{"error": "Splunk not fully configured"}]
+            return [{"error": "Splunk not fully configured (need host and token)"}]
 
         try:
-            # Build Splunk search query
-            search_query = f'search index="{index}" "{object_name}"'
+            # Build comprehensive Splunk search query
+            # Search for the object name in various fields common to InfoBlox logs
+            search_parts = [f'search index="{index}"']
+
+            # Add sourcetype filter if configured
+            if sourcetype:
+                search_parts.append(f'sourcetype="{sourcetype}"')
+
+            # Search for object name in multiple fields
+            # InfoBlox logs can have different formats depending on how they're ingested
+            object_search = f'("{object_name}")'
+            search_parts.append(object_search)
+
+            # Add object type filter if provided
             if object_type:
-                search_query += f' object_type="{object_type}"'
-            search_query += f" | head {max_results}"
+                type_filter = f'(object_type="{object_type}" OR object_type="{object_type.upper()}" OR object_type="{object_type.lower()}")'
+                search_parts.append(type_filter)
+
+            # Sort by time and limit results
+            search_query = " ".join(search_parts)
+            search_query += f" | sort -_time | head {max_results}"
+
+            # Add field extraction for common InfoBlox audit fields
+            search_query += ' | table _time, admin, user, src_user, action, object_type, object_name, message, src, dest, _raw'
 
             # Splunk REST API endpoint
             url = f"https://{host}/services/search/jobs/export"
@@ -176,7 +202,7 @@ class AuditClient:
             data = {
                 "search": search_query,
                 "output_mode": "json",
-                "earliest_time": "-30d",
+                "earliest_time": "-90d",  # Extended to 90 days for better audit history
                 "latest_time": "now"
             }
 
@@ -189,23 +215,63 @@ class AuditClient:
             )
 
             if response.status_code == 200:
-                # Parse Splunk JSON response
+                # Parse Splunk JSON response (streaming format)
                 results = []
                 for line in response.text.strip().split("\n"):
                     if line:
                         try:
-                            import json
                             event = json.loads(line)
                             if "result" in event:
-                                results.append(event["result"])
-                        except Exception:
+                                result = event["result"]
+                                # Normalize field names
+                                normalized = self._normalize_splunk_result(result)
+                                results.append(normalized)
+                        except json.JSONDecodeError:
                             pass
                 return results
+            elif response.status_code == 401:
+                return [{"error": "Splunk authentication failed. Check your token."}]
+            elif response.status_code == 403:
+                return [{"error": "Splunk access denied. Check token permissions."}]
             else:
-                return [{"error": f"Splunk query failed: {response.status_code}"}]
+                return [{"error": f"Splunk query failed: HTTP {response.status_code}"}]
 
+        except requests.exceptions.ConnectionError:
+            return [{"error": f"Cannot connect to Splunk at {host}"}]
+        except requests.exceptions.Timeout:
+            return [{"error": "Splunk query timed out"}]
         except Exception as e:
-            return [{"error": f"Splunk query error: {e}"}]
+            return [{"error": f"Splunk query error: {str(e)}"}]
+
+    def _normalize_splunk_result(self, result: Dict) -> Dict:
+        """Normalize Splunk result fields for consistent output."""
+        normalized = {
+            "timestamp": result.get("_time", ""),
+            "admin": (
+                result.get("admin") or
+                result.get("user") or
+                result.get("src_user") or
+                result.get("Admin") or
+                "unknown"
+            ),
+            "action": result.get("action", ""),
+            "object_type": result.get("object_type", ""),
+            "object_name": result.get("object_name", ""),
+            "message": result.get("message") or result.get("_raw", ""),
+            "source": result.get("src", ""),
+            "destination": result.get("dest", "")
+        }
+
+        # Format timestamp if present
+        if normalized["timestamp"]:
+            try:
+                # Try to parse ISO format
+                ts = datetime.fromisoformat(normalized["timestamp"].replace("Z", "+00:00"))
+                normalized["timestamp_formatted"] = ts.strftime("%Y-%m-%d %H:%M:%S")
+            except (ValueError, AttributeError):
+                normalized["timestamp_formatted"] = normalized["timestamp"]
+
+        return normalized
 
 
 def get_audit_for_object(
