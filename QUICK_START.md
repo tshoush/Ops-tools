@@ -338,9 +338,26 @@ chmod +x ./setup.sh
 
 ---
 
-## Splunk Audit Integration
+## Audit Information
 
-InfoBlox WAPI does not expose audit logs directly. DDI Toolkit retrieves audit history from Splunk.
+DDI Toolkit retrieves audit information from two sources (in priority order):
+
+| Priority | Source | Description |
+|----------|--------|-------------|
+| 1 | **Splunk** | Queries Splunk for audit logs (if configured) |
+| 2 | **WAPI fileop** | Downloads audit logs directly from InfoBlox |
+
+### Default: WAPI Fileop
+
+Without Splunk configuration, DDI Toolkit automatically downloads audit logs from InfoBlox:
+
+- Uses WAPI `fileop` with `get_log_files` function
+- Downloads and parses the audit log archive
+- Caches logs for 5 minutes to improve performance
+
+### Optional: Splunk Integration
+
+For extended audit history, configure Splunk:
 
 **Prerequisites:**
 - InfoBlox configured to send audit logs to Splunk via syslog

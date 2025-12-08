@@ -424,10 +424,33 @@ All queries include audit data:
 | `last_modified_by` | Admin username who last modified |
 | `recent_changes` | Last 5 audit log entries |
 | `splunk_audit` | Extended audit from Splunk (if enabled) |
+| `fileop_audit` | Audit from WAPI fileop (fallback) |
 
-### Splunk Integration
+### Audit Sources
 
-InfoBlox WAPI does not expose audit logs as a queryable object. DDI Toolkit retrieves audit history from Splunk, where InfoBlox forwards audit logs via syslog.
+DDI Toolkit supports two audit sources, tried in priority order:
+
+| Priority | Source | Description |
+|----------|--------|-------------|
+| 1 | **Splunk** | Queries Splunk for audit logs forwarded via syslog |
+| 2 | **WAPI fileop** | Downloads audit logs directly from InfoBlox |
+
+If Splunk is configured and returns results, those are used. Otherwise, DDI Toolkit falls back to downloading audit logs directly from InfoBlox via the WAPI `fileop` function.
+
+### WAPI Fileop Audit (Default)
+
+When Splunk is not configured, DDI Toolkit automatically downloads audit logs from InfoBlox:
+
+- Uses WAPI `fileop` with `get_log_files` function
+- Downloads the `AUDITLOG` archive from the active grid member
+- Parses audit entries and filters by object name
+- Caches downloaded logs for 5 minutes to avoid repeated downloads
+
+**Note:** InfoBlox WAPI does not expose `auditlog` as a queryable object type. The fileop method is the only way to retrieve audit data directly from InfoBlox.
+
+### Splunk Integration (Optional)
+
+For extended audit history and better search capabilities, configure Splunk integration:
 
 **To enable Splunk audit integration:**
 
