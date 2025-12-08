@@ -41,7 +41,7 @@ class BaseCommand(ABC):
         """
         pass
 
-    def run(self, query: str, quiet: bool = False, **kwargs) -> Dict[str, str]:
+    def run(self, query: str, quiet: bool = False, **kwargs) -> Dict[str, Any]:
         """
         Run command and write output.
 
@@ -51,9 +51,14 @@ class BaseCommand(ABC):
             **kwargs: Additional options
 
         Returns:
-            Dict with paths to output files
+            Dict with paths to output files, or error dict if query failed
         """
         data = self.execute(query, **kwargs)
+
+        # If the result is an error (e.g., not found), return it directly
+        # without writing output files
+        if isinstance(data, dict) and data.get("error"):
+            return data
 
         # Extract summary if provided
         summary = None

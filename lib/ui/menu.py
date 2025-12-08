@@ -157,41 +157,53 @@ class MainMenu:
             cmd_class = get_command(cmd_name)
             if not cmd_class:
                 print(error(f"\n  Command '{cmd_name}' not found"))
+                input("\n  Press Enter to continue...")
                 return
 
             cmd = cmd_class()
             result = cmd.run(query, quiet=False, **kwargs)
 
-            # Check if resource was found in different views
-            if isinstance(result, dict) and result.get("found_in_views"):
-                found_views = result.get("found_in_views", [])
-                current_view = kwargs.get("network_view", "default")
+            # Check if result is an error
+            if isinstance(result, dict) and result.get("error"):
+                # Check if resource was found in different views
+                if result.get("found_in_views"):
+                    found_views = result.get("found_in_views", [])
+                    current_view = kwargs.get("network_view", "default")
 
-                print(warning(f"\n  {query} not found in view '{current_view}'"))
-                print(warning(f"  Found in: {', '.join(found_views)}"))
+                    print(warning(f"\n  {query} not found in view '{current_view}'"))
+                    print(warning(f"  Found in: {', '.join(found_views)}"))
 
-                # Ask user if they want to query in one of those views
-                if len(found_views) == 1:
-                    choice = prompt_confirm(f"\n  Query in '{found_views[0]}' instead?")
-                    if choice:
-                        print(f"\n  {dim('Querying...')}")
-                        result = cmd.run(query, quiet=False, network_view=found_views[0], all_views=False)
-                        print(success(f"\n  Query completed successfully!"))
-                else:
-                    print(f"\n  Select a view to query:")
-                    for i, v in enumerate(found_views, 1):
-                        print(f"    [{i}] {v}")
-                    print(f"    [0] Cancel")
-
-                    choice = prompt_input("Choice", default="0")
-                    try:
-                        idx = int(choice)
-                        if 1 <= idx <= len(found_views):
+                    # Ask user if they want to query in one of those views
+                    if len(found_views) == 1:
+                        choice = prompt_confirm(f"\n  Query in '{found_views[0]}' instead?")
+                        if choice:
                             print(f"\n  {dim('Querying...')}")
-                            result = cmd.run(query, quiet=False, network_view=found_views[idx-1], all_views=False)
-                            print(success(f"\n  Query completed successfully!"))
-                    except ValueError:
-                        pass
+                            result = cmd.run(query, quiet=False, network_view=found_views[0], all_views=False)
+                            if not result.get("error"):
+                                print(success(f"\n  Query completed successfully!"))
+                            else:
+                                print(error(f"\n  {result.get('error')}"))
+                    else:
+                        print(f"\n  Select a view to query:")
+                        for i, v in enumerate(found_views, 1):
+                            print(f"    [{i}] {v}")
+                        print(f"    [0] Cancel")
+
+                        choice = prompt_input("Choice", default="0")
+                        try:
+                            idx = int(choice)
+                            if 1 <= idx <= len(found_views):
+                                print(f"\n  {dim('Querying...')}")
+                                result = cmd.run(query, quiet=False, network_view=found_views[idx-1], all_views=False)
+                                if not result.get("error"):
+                                    print(success(f"\n  Query completed successfully!"))
+                                else:
+                                    print(error(f"\n  {result.get('error')}"))
+                        except ValueError:
+                            pass
+                else:
+                    # Regular error (not found anywhere)
+                    print(error(f"\n  {result.get('error')}"))
             else:
                 print(success(f"\n  Query completed successfully!"))
 
