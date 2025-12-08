@@ -14,10 +14,11 @@ class IPCommand(BaseCommand):
     description = "Query IP address details, bindings, conflicts, audit info"
     aliases = ["ipv4", "address", "addr"]
 
+    # Core fields supported across WAPI versions
     RETURN_FIELDS = [
         "ip_address", "status", "types", "names", "mac_address",
-        "network", "network_view", "conflict", "usage", "extattrs",
-        "discovered_data", "lease_state", "is_conflict"
+        "network", "network_view", "usage", "extattrs",
+        "lease_state", "is_conflict"
     ]
 
     def execute(self, query: str, **kwargs) -> Dict[str, Any]:
