@@ -49,6 +49,15 @@ On first run, you'll be prompted to configure:
   WAPI Version [2.13.1]: 2.13.1
   Verify SSL Certificate? [y/N]: n
 
+  Splunk Integration (Optional)
+    Splunk provides audit history: who created/modified objects
+
+  Enable Splunk audit integration? [y/N]: y
+  Splunk Host:Port: splunk.example.com:8089
+  Splunk API Token: ********
+  Splunk Index: dhcp_idx
+  Splunk Sourcetype (optional):
+
   Configuration saved successfully!
 ```
 
@@ -325,6 +334,29 @@ curl -k -u admin:password https://your-grid-master/wapi/v2.13.1/grid
 ```bash
 chmod +x ./ddi
 chmod +x ./setup.sh
+```
+
+---
+
+## Splunk Audit Integration
+
+InfoBlox WAPI does not expose audit logs directly. DDI Toolkit retrieves audit history from Splunk.
+
+**Prerequisites:**
+- InfoBlox configured to send audit logs to Splunk via syslog
+- Splunk API token with search permissions
+
+**Configuration fields:**
+| Field | Description | Example |
+|-------|-------------|---------|
+| Host:Port | Splunk REST API endpoint | `splunk.example.com:8089` |
+| API Token | Bearer token for authentication | (from Splunk settings) |
+| Index | Splunk index with InfoBlox logs | `dhcp_idx` |
+| Sourcetype | Optional filter for log format | `syslog` or leave empty |
+
+**Find available sourcetypes:**
+```
+index="your_index" | stats count by sourcetype
 ```
 
 ---

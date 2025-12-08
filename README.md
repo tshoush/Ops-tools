@@ -353,7 +353,8 @@ Settings are stored in `config.json`:
     "enabled": false,
     "host": "",
     "token": "",
-    "index": "infoblox_audit"
+    "index": "",
+    "sourcetype": ""
   },
   "output": {
     "default_dir": "./output",
@@ -426,11 +427,23 @@ All queries include audit data:
 
 ### Splunk Integration
 
-To enable Splunk audit integration:
+InfoBlox WAPI does not expose audit logs as a queryable object. DDI Toolkit retrieves audit history from Splunk, where InfoBlox forwards audit logs via syslog.
 
-1. Configure Splunk settings during setup
-2. Ensure InfoBlox audit logs are indexed
-3. Provide HEC token with search permissions
+**To enable Splunk audit integration:**
+
+1. Ensure InfoBlox is configured to send audit logs to Splunk via syslog
+2. During DDI Toolkit setup, enable Splunk integration and provide:
+   - **Host:Port** - Splunk REST API endpoint (e.g., `splunk.example.com:8089`)
+   - **API Token** - Bearer token with search permissions
+   - **Index** - The Splunk index containing InfoBlox logs (e.g., `dhcp_idx`, `infoblox_audit`)
+   - **Sourcetype** (optional) - Filter to specific log format (e.g., `syslog`, `infoblox:audit`)
+
+**Finding your sourcetype:**
+```
+index="your_index" | stats count by sourcetype
+```
+
+**Note:** If sourcetype is left empty, all logs in the index are searched.
 
 ---
 
