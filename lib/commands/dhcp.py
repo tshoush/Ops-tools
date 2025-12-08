@@ -134,7 +134,8 @@ class DHCPCommand(BaseCommand):
             return_fields=[
                 "address", "network", "network_view", "hardware",
                 "client_hostname", "fingerprint", "starts", "ends",
-                "binding_state", "served_by", "tstp", "cltt"
+                "binding_state", "served_by", "tstp", "cltt",
+                "discovered_data", "option", "protocol"
             ],
             paging=True,
             page_size=1000
