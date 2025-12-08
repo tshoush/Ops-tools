@@ -34,12 +34,30 @@ class TestAuditClient:
 
     @pytest.fixture
     def mock_config_splunk_enabled(self):
-        """Config with Splunk enabled."""
+        """Config with Splunk enabled (token auth)."""
         return {
             "splunk": {
                 "enabled": True,
                 "host": "splunk.example.com:8089",
                 "token": "test-token",
+                "username": "",
+                "password": "",
+                "index": "infoblox_audit",
+                "sourcetype": ""
+            }
+        }
+
+    @pytest.fixture
+    def mock_config_splunk_userpass(self):
+        """Config with Splunk enabled (username/password auth)."""
+        import base64
+        return {
+            "splunk": {
+                "enabled": True,
+                "host": "splunk.example.com:8089",
+                "token": "",
+                "username": "splunkuser",
+                "password": base64.b64encode(b"splunkpass").decode(),
                 "index": "infoblox_audit",
                 "sourcetype": ""
             }
@@ -166,6 +184,22 @@ class TestAuditClient:
                 assert len(results) == 1
                 assert "error" in results[0]
                 assert "authentication" in results[0]["error"].lower()
+
+    def test_splunk_userpass_auth(self, mock_config_splunk_userpass):
+        """Test Splunk with username/password authentication."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '{"result": {"_time": "2024-01-15T10:30:00", "admin": "jsmith", "action": "INSERT"}}'
+
+        with patch('lib.audit.load_config', return_value=mock_config_splunk_userpass):
+            with patch('lib.audit.requests.post', return_value=mock_response) as mock_post:
+                client = AuditClient()
+                results = client._get_splunk_audit("10.20.30.0/24", "NETWORK")
+
+                # Verify basic auth was used (not token)
+                call_args = mock_post.call_args
+                assert call_args.kwargs.get('auth') == ('splunkuser', 'splunkpass')
+                assert 'Authorization' not in call_args.kwargs.get('headers', {})
 
 
 class TestFormatAuditSummary:

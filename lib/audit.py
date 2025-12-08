@@ -17,7 +17,7 @@ import tarfile
 import io
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
-from .config import load_config, get_infoblox_creds
+from .config import load_config, get_infoblox_creds, decode_password
 
 # Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -189,6 +189,7 @@ class AuditClient:
         Get audit entries from Splunk.
 
         Searches the configured Splunk index for InfoBlox audit events.
+        Supports both token-based and username/password authentication.
         """
         splunk_config = self.config.get("splunk", {})
 
@@ -197,11 +198,20 @@ class AuditClient:
 
         host = splunk_config.get("host", "")
         token = splunk_config.get("token", "")
+        username = splunk_config.get("username", "")
+        password = decode_password(splunk_config.get("password", ""))
         index = splunk_config.get("index", "")
         sourcetype = splunk_config.get("sourcetype", "")
 
-        if not host or not token:
-            return [{"error": "Splunk not fully configured (need host and token)"}]
+        # Check authentication - need either token OR username/password
+        has_token = bool(token)
+        has_userpass = bool(username and password)
+
+        if not host:
+            return [{"error": "Splunk host not configured"}]
+
+        if not has_token and not has_userpass:
+            return [{"error": "Splunk not fully configured (need token OR username/password)"}]
 
         if not index:
             return [{"error": "Splunk index not configured"}]
@@ -229,10 +239,16 @@ class AuditClient:
             # Splunk REST API endpoint
             url = f"https://{host}/services/search/jobs/export"
 
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
+            # Set up authentication
+            headers = {"Content-Type": "application/x-www-form-urlencoded"}
+            auth = None
+
+            if has_token:
+                # Token-based authentication
+                headers["Authorization"] = f"Bearer {token}"
+            else:
+                # Username/password basic authentication
+                auth = (username, password)
 
             data = {
                 "search": search_query,
@@ -244,6 +260,7 @@ class AuditClient:
             response = requests.post(
                 url,
                 headers=headers,
+                auth=auth,
                 data=data,
                 verify=False,
                 timeout=30
@@ -263,7 +280,7 @@ class AuditClient:
                             pass
                 return results
             elif response.status_code == 401:
-                return [{"error": "Splunk authentication failed. Check your token."}]
+                return [{"error": "Splunk authentication failed. Check your credentials."}]
             elif response.status_code == 403:
                 return [{"error": "Splunk access denied. Check token permissions."}]
             else:

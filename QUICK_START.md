@@ -361,13 +361,15 @@ For extended audit history, configure Splunk:
 
 **Prerequisites:**
 - InfoBlox configured to send audit logs to Splunk via syslog
-- Splunk API token with search permissions
+- Splunk credentials (username/password) OR API token
 
 **Configuration fields:**
 | Field | Description | Example |
 |-------|-------------|---------|
 | Host:Port | Splunk REST API endpoint | `splunk.example.com:8089` |
-| API Token | Bearer token for authentication | (from Splunk settings) |
+| Username | Splunk account username | `your_username` |
+| Password | Splunk account password | (your password) |
+| *OR* API Token | Bearer token (alternative to user/pass) | (from Splunk settings) |
 | Index | Splunk index with InfoBlox logs | `dhcp_idx` |
 | Sourcetype | Optional filter for log format | `syslog` or leave empty |
 

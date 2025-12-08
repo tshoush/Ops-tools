@@ -25,6 +25,8 @@ DEFAULT_CONFIG = {
     "splunk": {
         "enabled": False,
         "host": "",
+        "username": "",
+        "password": "",
         "token": "",
         "index": "",
         "sourcetype": ""
@@ -214,11 +216,30 @@ def run_first_time_setup() -> Dict[str, Any]:
             "Splunk Host:Port",
             hint="Example: splunk.marriott.com:8089"
         )
-        splunk["token"] = prompt_input(
-            "Splunk API Token",
-            hint="Bearer token for Splunk REST API",
-            secret=True
-        )
+
+        # Auth method choice
+        print(f"\n    {dim('Authentication: Use username/password OR API token')}\n")
+        use_token = prompt_confirm("Use API token? (No = use username/password)", default=False)
+
+        if use_token:
+            splunk["token"] = prompt_input(
+                "Splunk API Token",
+                hint="Bearer token for Splunk REST API",
+                secret=True
+            )
+            splunk["username"] = ""
+            splunk["password"] = ""
+        else:
+            splunk["username"] = prompt_input(
+                "Splunk Username",
+                hint="Your Splunk account username"
+            )
+            splunk["password"] = encode_password(prompt_input(
+                "Splunk Password",
+                secret=True
+            ))
+            splunk["token"] = ""
+
         splunk["index"] = prompt_input(
             "Splunk Index",
             hint="Example: dhcp_idx, infoblox_audit, etc.",
@@ -329,16 +350,47 @@ def run_config_editor() -> Dict[str, Any]:
             hint="Example: splunk.marriott.com:8089",
             default=splunk.get("host", "")
         )
-        current_token = splunk.get("token", "")
-        new_token = prompt_input(
-            "Splunk API Token",
-            hint="Bearer token for Splunk REST API",
-            default="********" if current_token else "",
-            secret=True,
-            required=False
+
+        # Determine current auth method
+        has_token = bool(splunk.get("token", ""))
+        has_userpass = bool(splunk.get("username", ""))
+
+        print(f"\n    {dim('Authentication: Use username/password OR API token')}\n")
+        use_token = prompt_confirm(
+            "Use API token? (No = use username/password)",
+            default=has_token and not has_userpass
         )
-        if new_token and new_token != "********":
-            splunk["token"] = new_token
+
+        if use_token:
+            current_token = splunk.get("token", "")
+            new_token = prompt_input(
+                "Splunk API Token",
+                hint="Bearer token for Splunk REST API",
+                default="********" if current_token else "",
+                secret=True,
+                required=False
+            )
+            if new_token and new_token != "********":
+                splunk["token"] = new_token
+            splunk["username"] = ""
+            splunk["password"] = ""
+        else:
+            splunk["username"] = prompt_input(
+                "Splunk Username",
+                hint="Your Splunk account username",
+                default=splunk.get("username", "")
+            )
+            current_pw = splunk.get("password", "")
+            new_pw = prompt_input(
+                "Splunk Password",
+                default="********" if current_pw else "",
+                secret=True,
+                required=False
+            )
+            if new_pw and new_pw != "********":
+                splunk["password"] = encode_password(new_pw)
+            splunk["token"] = ""
+
         splunk["index"] = prompt_input(
             "Splunk Index",
             hint="Example: dhcp_idx, infoblox_audit, etc.",

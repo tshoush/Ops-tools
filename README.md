@@ -457,9 +457,18 @@ For extended audit history and better search capabilities, configure Splunk inte
 1. Ensure InfoBlox is configured to send audit logs to Splunk via syslog
 2. During DDI Toolkit setup, enable Splunk integration and provide:
    - **Host:Port** - Splunk REST API endpoint (e.g., `splunk.example.com:8089`)
-   - **API Token** - Bearer token with search permissions
+   - **Authentication** - Either:
+     - **Username/Password** - Your Splunk account credentials (recommended)
+     - **API Token** - Bearer token with search permissions
    - **Index** - The Splunk index containing InfoBlox logs (e.g., `dhcp_idx`, `infoblox_audit`)
    - **Sourcetype** (optional) - Filter to specific log format (e.g., `syslog`, `infoblox:audit`)
+
+**Authentication Methods:**
+
+| Method | When to Use |
+|--------|-------------|
+| Username/Password | Standard Splunk account credentials - simplest option |
+| API Token | Service accounts, automation, or when tokens are required by policy |
 
 **Finding your sourcetype:**
 ```
