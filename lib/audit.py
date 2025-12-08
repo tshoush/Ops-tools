@@ -86,18 +86,12 @@ class AuditClient:
         """
         Get audit log entries from InfoBlox WAPI.
 
-        The auditlog object contains:
-        - timestamp: When the action occurred
-        - admin: Username who made the change
-        - action: INSERT, UPDATE, DELETE
-        - object_type: Type of object modified
-        - object_name: Name/identifier of object
-        - message: Description of change
+        Note: The auditlog object may not be available in all WAPI versions
+        or may require specific permissions. This method handles failures
+        gracefully by returning an empty list.
         """
         try:
             # Query auditlog for this object
-            # Note: Searching by object_ref may not always work,
-            # so we also try object_name patterns
             params = {"_max_results": str(max_results)}
 
             if object_type:
@@ -120,7 +114,7 @@ class AuditClient:
                 params=params,
                 return_fields=[
                     "timestamp", "admin", "action", "object_type",
-                    "object_name", "message", "exec_ts"
+                    "object_name", "message"
                 ]
             )
 
@@ -136,8 +130,10 @@ class AuditClient:
 
             return audit_entries
 
-        except Exception as e:
-            return [{"error": f"Failed to retrieve WAPI audit: {e}"}]
+        except Exception:
+            # auditlog object not available in this WAPI version or no permission
+            # Return empty list - audit info will show as N/A
+            return []
 
     def _get_splunk_audit(
         self,

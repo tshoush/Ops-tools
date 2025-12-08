@@ -100,9 +100,8 @@ class TestAuditClient:
                 object_type="NETWORK"
             )
 
-            # Should return error entry, not raise
-            assert len(result) == 1
-            assert "error" in result[0]
+            # Should return empty list on error (graceful degradation)
+            assert result == []
 
 
 class TestFormatAuditSummary:
