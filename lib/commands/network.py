@@ -170,16 +170,27 @@ class NetworkCommand(BaseCommand):
             ]
         )
 
-        # Get all IP addresses in the network (used, unused, reserved)
+        # Get all IP addresses in the network
         ip_addresses = []
+        ip_stats = {"total": 0, "used": 0, "unused": 0}
         if include_ips:
-            ip_addresses = self.client.get(
+            all_ips = self.client.get(
                 "ipv4address",
                 params=related_params,
                 return_fields=self.IP_RETURN_FIELDS,
                 paging=True,
                 page_size=1000
             )
+
+            # Separate used vs unused - only include used IPs in output
+            ip_stats["total"] = len(all_ips)
+            for ip in all_ips:
+                status = ip.get("status", "").upper()
+                if status == "UNUSED":
+                    ip_stats["unused"] += 1
+                else:
+                    ip_stats["used"] += 1
+                    ip_addresses.append(ip)
 
         # Get audit information
         audit_info = {}
@@ -215,7 +226,11 @@ class NetworkCommand(BaseCommand):
             "active_leases": leases,
             "lease_count": len(leases),
             "ip_addresses": ip_addresses,
-            "ip_count": len(ip_addresses),
+            "ip_statistics": {
+                "total": ip_stats["total"],
+                "used": ip_stats["used"],
+                "unused": ip_stats["unused"]
+            },
             "options": network.get("options", []),
             "members": network.get("members", []),
             "extattrs": network.get("extattrs", {}),
@@ -232,7 +247,8 @@ class NetworkCommand(BaseCommand):
                 "Network": query,
                 "Utilization": f"{network.get('utilization', 'N/A')}%",
                 "Total Hosts": network.get("total_hosts", "N/A"),
-                "IP Addresses": len(ip_addresses),
+                "Used IPs": ip_stats["used"],
+                "Unused IPs": ip_stats["unused"],
                 "DHCP Ranges": len(ranges),
                 "DHCP Servers": len(dhcp_servers),
                 "Active Leases": len(leases),
