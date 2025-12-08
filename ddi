@@ -79,9 +79,10 @@ def run_quiet_mode():
 
     @cli.command()
     @click.argument('query')
-    def search(query):
+    @click.option('--view', default='default', help='Network view')
+    def search(query, view):
         """Global search."""
-        _run_quiet_command('search', query)
+        _run_quiet_command('search', query, network_view=view)
 
     def _run_quiet_command(cmd_name: str, query: str, **kwargs):
         """Execute command in quiet mode."""

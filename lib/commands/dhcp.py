@@ -65,8 +65,7 @@ class DHCPCommand(BaseCommand):
             return_fields=[
                 "start_addr", "end_addr", "network", "network_view",
                 "server_association_type", "member", "failover_association",
-                "options", "comment", "disable", "extattrs",
-                "dhcp_utilization", "dynamic_ratio"
+                "options", "comment", "disable", "extattrs"
             ]
         )
 
@@ -135,8 +134,7 @@ class DHCPCommand(BaseCommand):
             return_fields=[
                 "address", "network", "network_view", "hardware",
                 "client_hostname", "fingerprint", "starts", "ends",
-                "binding_state", "served_by", "tstp", "cltt",
-                "discovered_data", "option", "protocol"
+                "binding_state", "served_by", "tstp", "cltt"
             ],
             paging=True,
             page_size=1000
