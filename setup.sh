@@ -25,7 +25,7 @@ echo "  ╚═══════════════════════
 echo -e "${NC}"
 
 # Check Python version
-echo -e "${BOLD}[1/3] Checking Python...${NC}"
+echo -e "${BOLD}[1/4] Checking Python...${NC}"
 if ! command -v python3 &> /dev/null; then
     echo -e "${RED}  Error: Python 3 is required but not installed.${NC}"
     exit 1
@@ -43,7 +43,7 @@ fi
 echo -e "  ${GREEN}✓${NC} Python ${PYTHON_VERSION} found"
 
 # Create virtual environment
-echo -e "\n${BOLD}[2/3] Setting up virtual environment...${NC}"
+echo -e "\n${BOLD}[2/4] Setting up virtual environment...${NC}"
 if [ ! -d "$VENV_DIR" ]; then
     python3 -m venv "$VENV_DIR"
     echo -e "  ${GREEN}✓${NC} Virtual environment created"
@@ -52,7 +52,7 @@ else
 fi
 
 # Activate and install dependencies
-echo -e "\n${BOLD}[3/3] Installing dependencies...${NC}"
+echo -e "\n${BOLD}[3/4] Installing Python dependencies...${NC}"
 source "$VENV_DIR/bin/activate"
 pip install --quiet --upgrade pip
 
@@ -70,6 +70,20 @@ chmod +x "$DDI_SCRIPT"
 # Create output directory
 mkdir -p "$SCRIPT_DIR/output"
 
+# Install Node.js dependencies (marp-cli for presentations)
+echo -e "\n${BOLD}[4/4] Installing presentation tools...${NC}"
+if command -v npm &> /dev/null; then
+    if ! command -v marp &> /dev/null; then
+        npm install -g @marp-team/marp-cli --silent 2>/dev/null
+        echo -e "  ${GREEN}✓${NC} marp-cli installed (for presentations)"
+    else
+        echo -e "  ${YELLOW}○${NC} marp-cli already installed"
+    fi
+else
+    echo -e "  ${YELLOW}○${NC} npm not found - skipping marp-cli (optional)"
+    echo -e "    Install Node.js to enable PowerPoint/PDF export"
+fi
+
 echo -e "\n${GREEN}════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  Setup Complete!${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
@@ -84,4 +98,9 @@ echo
 echo -e "    ${CYAN}.venv/bin/python ./ddi${NC}"
 echo
 echo -e "  First run will prompt for InfoBlox configuration."
+echo
+echo -e "  To generate presentations:"
+echo
+echo -e "    ${CYAN}marp docs/DDI_Toolkit_Presentation.md --pptx -o DDI_Toolkit.pptx${NC}"
+echo -e "    ${CYAN}marp docs/DDI_Toolkit_Presentation.md --pdf -o DDI_Toolkit.pdf${NC}"
 echo

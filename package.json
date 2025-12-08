@@ -1,0 +1,12 @@
+{
+  "name": "ddi-toolkit-docs",
+  "version": "1.0.0",
+  "description": "Node.js dependencies for DDI Toolkit documentation",
+  "scripts": {
+    "pptx": "marp docs/DDI_Toolkit_Presentation.md --pptx -o DDI_Toolkit.pptx",
+    "pdf": "marp docs/DDI_Toolkit_Presentation.md --pdf -o DDI_Toolkit.pdf"
+  },
+  "devDependencies": {
+    "@marp-team/marp-cli": "^3.4.0"
+  }
+}
