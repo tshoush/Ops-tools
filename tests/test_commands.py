@@ -94,7 +94,10 @@ class TestNetworkCommand:
 
                 assert result["network"] == "10.20.30.0/24"
                 assert "utilization" in result
-                assert "dhcp_ranges" in result
+                assert "dhcp" in result
+                assert "ranges" in result["dhcp"]
+                assert "servers" in result["dhcp"]
+                assert "effective_options" in result["dhcp"]
                 assert "active_leases" in result
                 assert "audit" in result
 

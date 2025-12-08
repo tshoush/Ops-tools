@@ -20,6 +20,19 @@ class NetworkCommand(BaseCommand):
         "dhcp_utilization", "dynamic_hosts", "static_hosts"
     ]
 
+    RANGE_RETURN_FIELDS = [
+        "start_addr", "end_addr", "server_association_type",
+        "member", "failover_association", "options", "comment",
+        "disable", "name", "bootfile", "bootserver",
+        "deny_all_clients", "deny_bootp", "ignore_client_requested_options",
+        "pxe_lease_time", "option"
+    ]
+
+    MEMBER_DHCP_FIELDS = [
+        "host_name", "ipv4addr", "enable_dhcp",
+        "options", "option"
+    ]
+
     def execute(self, query: str, **kwargs) -> Dict[str, Any]:
         """
         Query network by CIDR.
@@ -65,15 +78,63 @@ class NetworkCommand(BaseCommand):
         if actual_view:
             related_params["network_view"] = actual_view
 
-        # Get DHCP ranges for this network
+        # Get DHCP ranges for this network with full options
         ranges = self.client.get(
             "range",
             params=related_params,
-            return_fields=[
-                "start_addr", "end_addr", "server_association_type",
-                "member", "options", "comment", "disable"
-            ]
+            return_fields=self.RANGE_RETURN_FIELDS
         )
+
+        # If ranges exist, get DHCP server info and effective options
+        dhcp_servers = []
+        effective_options = []
+        if ranges:
+            # Collect unique DHCP members from ranges
+            member_set = set()
+            for rng in ranges:
+                member = rng.get("member")
+                if member and isinstance(member, dict):
+                    # Member could be struct with _struct field
+                    member_name = member.get("name") or member.get("_struct")
+                    if member_name:
+                        member_set.add(member_name)
+                elif member and isinstance(member, str):
+                    member_set.add(member)
+
+                # Also check failover association for servers
+                failover = rng.get("failover_association")
+                if failover:
+                    member_set.add(failover)
+
+            # Get DHCP member/server details
+            for member_name in member_set:
+                try:
+                    member_info = self.client.get(
+                        "member:dhcpproperties",
+                        params={"host_name": member_name},
+                        return_fields=[
+                            "host_name", "ipv4addr", "enable_dhcp",
+                            "options", "option"
+                        ]
+                    )
+                    if member_info:
+                        dhcp_servers.append(member_info[0])
+                except Exception:
+                    pass
+
+            # Get effective DHCP options (network-level options merged with range options)
+            network_options = network.get("options", [])
+            for rng in ranges:
+                range_options = rng.get("options", [])
+                range_option_detail = rng.get("option", {})
+
+                effective = {
+                    "range": f"{rng.get('start_addr')}-{rng.get('end_addr')}",
+                    "network_options": network_options,
+                    "range_options": range_options,
+                    "range_option_detail": range_option_detail
+                }
+                effective_options.append(effective)
 
         # Get active leases
         leases = self.client.get(
@@ -109,8 +170,13 @@ class NetworkCommand(BaseCommand):
                 "static_hosts": network.get("static_hosts"),
                 "dhcp_utilization": network.get("dhcp_utilization")
             },
-            "dhcp_ranges": ranges,
-            "dhcp_range_count": len(ranges),
+            "dhcp": {
+                "ranges": ranges,
+                "range_count": len(ranges),
+                "servers": dhcp_servers,
+                "server_count": len(dhcp_servers),
+                "effective_options": effective_options
+            },
             "active_leases": leases,
             "lease_count": len(leases),
             "options": network.get("options", []),
@@ -130,6 +196,7 @@ class NetworkCommand(BaseCommand):
                 "Utilization": f"{network.get('utilization', 'N/A')}%",
                 "Total Hosts": network.get("total_hosts", "N/A"),
                 "DHCP Ranges": len(ranges),
+                "DHCP Servers": len(dhcp_servers),
                 "Active Leases": len(leases),
                 **audit_summary
             }
