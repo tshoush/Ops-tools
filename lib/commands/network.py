@@ -31,6 +31,11 @@ class NetworkCommand(BaseCommand):
         "host_name", "ipv4addr", "enable_dhcp"
     ]
 
+    IP_RETURN_FIELDS = [
+        "ip_address", "status", "types", "names", "mac_address",
+        "network", "network_view", "usage", "is_conflict"
+    ]
+
     def execute(self, query: str, **kwargs) -> Dict[str, Any]:
         """
         Query network by CIDR.
@@ -40,13 +45,15 @@ class NetworkCommand(BaseCommand):
             network_view: Network view (default: "default")
             all_views: If True, search across all network views
             include_audit: Include audit trail (default: True)
+            include_ips: Include all IP addresses in the network (default: True)
 
         Returns:
-            Network details including DHCP ranges, leases, and audit info
+            Network details including DHCP ranges, leases, IPs, and audit info
         """
         network_view = kwargs.get("network_view", "default")
         all_views = kwargs.get("all_views", False)
         include_audit = kwargs.get("include_audit", True)
+        include_ips = kwargs.get("include_ips", True)
 
         # Build query params
         params = {"network": query}
@@ -144,6 +151,17 @@ class NetworkCommand(BaseCommand):
             ]
         )
 
+        # Get all IP addresses in the network (used, unused, reserved)
+        ip_addresses = []
+        if include_ips:
+            ip_addresses = self.client.get(
+                "ipv4address",
+                params=related_params,
+                return_fields=self.IP_RETURN_FIELDS,
+                paging=True,
+                page_size=1000
+            )
+
         # Get audit information
         audit_info = {}
         audit_summary = {}
@@ -177,6 +195,8 @@ class NetworkCommand(BaseCommand):
             },
             "active_leases": leases,
             "lease_count": len(leases),
+            "ip_addresses": ip_addresses,
+            "ip_count": len(ip_addresses),
             "options": network.get("options", []),
             "members": network.get("members", []),
             "extattrs": network.get("extattrs", {}),
@@ -193,6 +213,7 @@ class NetworkCommand(BaseCommand):
                 "Network": query,
                 "Utilization": f"{network.get('utilization', 'N/A')}%",
                 "Total Hosts": network.get("total_hosts", "N/A"),
+                "IP Addresses": len(ip_addresses),
                 "DHCP Ranges": len(ranges),
                 "DHCP Servers": len(dhcp_servers),
                 "Active Leases": len(leases),
