@@ -26,7 +26,7 @@ DEFAULT_CONFIG = {
         "enabled": False,
         "host": "",
         "token": "",
-        "index": "infoblox_audit",
+        "index": "",
         "sourcetype": ""
     },
     "output": {
@@ -221,8 +221,8 @@ def run_first_time_setup() -> Dict[str, Any]:
         )
         splunk["index"] = prompt_input(
             "Splunk Index",
-            hint="Index where InfoBlox audit logs are stored",
-            default="infoblox_audit"
+            hint="Example: dhcp_idx, infoblox_audit, etc.",
+            default=""
         )
         splunk["sourcetype"] = prompt_input(
             "Splunk Sourcetype",
@@ -341,8 +341,8 @@ def run_config_editor() -> Dict[str, Any]:
             splunk["token"] = new_token
         splunk["index"] = prompt_input(
             "Splunk Index",
-            hint="Index where InfoBlox audit logs are stored",
-            default=splunk.get("index", "infoblox_audit")
+            hint="Example: dhcp_idx, infoblox_audit, etc.",
+            default=splunk.get("index", "")
         )
         splunk["sourcetype"] = prompt_input(
             "Splunk Sourcetype",
