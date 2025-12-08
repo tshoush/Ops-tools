@@ -121,13 +121,14 @@ class DHCPCommand(BaseCommand):
         all_views: bool,
         include_audit: bool
     ) -> Dict[str, Any]:
-        """Query active DHCP leases."""
+        """Query active DHCP leases with paging for large datasets."""
         params = {}
         if not all_views and network_view:
             params["network_view"] = network_view
         if network:
             params["network"] = network
 
+        # Use paging for potentially large lease datasets
         leases = self.client.get(
             "lease",
             params=params,
@@ -136,7 +137,9 @@ class DHCPCommand(BaseCommand):
                 "client_hostname", "fingerprint", "starts", "ends",
                 "binding_state", "served_by", "tstp", "cltt",
                 "discovered_data", "option", "protocol"
-            ]
+            ],
+            paging=True,
+            page_size=1000
         )
 
         # Categorize by binding state

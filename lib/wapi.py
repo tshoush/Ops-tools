@@ -116,16 +116,20 @@ class WAPIClient:
         object_type: str,
         params: Optional[Dict] = None,
         return_fields: Optional[List[str]] = None,
-        max_results: Optional[int] = None
+        max_results: Optional[int] = None,
+        paging: bool = False,
+        page_size: int = 1000
     ) -> List[Dict]:
         """
-        GET objects from WAPI.
+        GET objects from WAPI with optional paging for large datasets.
 
         Args:
             object_type: WAPI object type (e.g., 'network', 'ipv4address')
             params: Query parameters for filtering
             return_fields: Additional fields to return (uses _return_fields+)
-            max_results: Maximum number of results
+            max_results: Maximum number of results (None = unlimited with paging)
+            paging: Enable paging for large result sets
+            page_size: Number of results per page (default 1000)
 
         Returns:
             List of matching objects
@@ -136,6 +140,12 @@ class WAPIClient:
         if return_fields:
             query_params["_return_fields+"] = ",".join(return_fields)
 
+        if paging:
+            # Use WAPI paging for large datasets
+            query_params["_paging"] = "1"
+            query_params["_max_results"] = str(page_size)
+            return self._get_paged(object_type, query_params, max_results)
+
         if max_results:
             query_params["_max_results"] = str(max_results)
 
@@ -145,6 +155,111 @@ class WAPIClient:
         if isinstance(result, dict):
             return [result]
         return result if result else []
+
+    def _get_paged(
+        self,
+        object_type: str,
+        query_params: Dict,
+        max_results: Optional[int] = None
+    ) -> List[Dict]:
+        """
+        Fetch results using WAPI paging for large datasets.
+
+        Args:
+            object_type: WAPI object type
+            query_params: Query parameters (must include _paging=1)
+            max_results: Maximum total results (None = all)
+
+        Returns:
+            List of all matching objects
+        """
+        all_results = []
+        next_page_id = None
+        total_fetched = 0
+
+        while True:
+            params = query_params.copy()
+            if next_page_id:
+                params["_page_id"] = next_page_id
+
+            response = self._request("GET", object_type, params=params)
+
+            # Handle paged response format
+            if isinstance(response, dict):
+                results = response.get("result", [])
+                next_page_id = response.get("next_page_id")
+            else:
+                results = response if response else []
+                next_page_id = None
+
+            if not results:
+                break
+
+            all_results.extend(results)
+            total_fetched += len(results)
+
+            # Check if we've hit max_results
+            if max_results and total_fetched >= max_results:
+                all_results = all_results[:max_results]
+                break
+
+            # No more pages
+            if not next_page_id:
+                break
+
+        return all_results
+
+    def get_streamed(
+        self,
+        object_type: str,
+        params: Optional[Dict] = None,
+        return_fields: Optional[List[str]] = None,
+        page_size: int = 1000
+    ):
+        """
+        Generator that yields results in batches for memory efficiency.
+
+        Use this for very large datasets where you want to process
+        results incrementally without loading all into memory.
+
+        Args:
+            object_type: WAPI object type
+            params: Query parameters
+            return_fields: Fields to return
+            page_size: Results per batch
+
+        Yields:
+            Batches of results (lists)
+        """
+        query_params = params.copy() if params else {}
+        query_params["_return_as_object"] = "1"
+        query_params["_paging"] = "1"
+        query_params["_max_results"] = str(page_size)
+
+        if return_fields:
+            query_params["_return_fields+"] = ",".join(return_fields)
+
+        next_page_id = None
+
+        while True:
+            page_params = query_params.copy()
+            if next_page_id:
+                page_params["_page_id"] = next_page_id
+
+            response = self._request("GET", object_type, params=page_params)
+
+            if isinstance(response, dict):
+                results = response.get("result", [])
+                next_page_id = response.get("next_page_id")
+            else:
+                results = response if response else []
+                next_page_id = None
+
+            if results:
+                yield results
+
+            if not next_page_id:
+                break
 
     def get_by_ref(
         self,
