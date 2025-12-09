@@ -10,6 +10,7 @@ The fileop method uses get_log_files to download the audit log archive.
 """
 
 import json
+import logging
 import re
 import requests
 import urllib3
@@ -18,6 +19,9 @@ import io
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 from .config import load_config, get_infoblox_creds, decode_password
+
+# Set up module logger
+logger = logging.getLogger(__name__)
 
 # Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -413,6 +417,7 @@ class AuditClient:
             )
 
             if resp.status_code != 200:
+                logger.debug(f"Audit log fileop request failed: HTTP {resp.status_code}")
                 return []
 
             data = resp.json()
@@ -420,6 +425,7 @@ class AuditClient:
             token = data.get("token", "").replace("\n", "")
 
             if not download_url:
+                logger.debug("Audit log fileop returned no download URL")
                 return []
 
             # Step 2: Download the archive using POST
@@ -438,13 +444,25 @@ class AuditClient:
                 timeout=60
             )
 
-            if download_resp.status_code != 200 or len(download_resp.content) == 0:
+            if download_resp.status_code != 200:
+                logger.debug(f"Audit log download failed: HTTP {download_resp.status_code}")
+                return []
+
+            if len(download_resp.content) == 0:
+                logger.debug("Audit log archive is empty")
                 return []
 
             # Step 3: Extract and parse the audit log
             return self._parse_audit_archive(download_resp.content)
 
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"Connection error downloading audit log: {e}")
+            return []
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"Timeout downloading audit log: {e}")
+            return []
         except Exception as e:
+            logger.warning(f"Error downloading audit log: {type(e).__name__}: {e}")
             return []
 
     def _parse_audit_archive(self, archive_content: bytes) -> List[Dict]:
@@ -455,12 +473,18 @@ class AuditClient:
             with tarfile.open(fileobj=io.BytesIO(archive_content), mode='r:gz') as tar:
                 for member in tar.getnames():
                     if 'audit' in member.lower():
-                        f = tar.extractfile(member)
-                        if f:
-                            content = f.read().decode('utf-8', errors='ignore')
-                            entries.extend(self._parse_audit_log_content(content))
-        except Exception:
-            pass
+                        try:
+                            f = tar.extractfile(member)
+                            if f:
+                                content = f.read().decode('utf-8', errors='ignore')
+                                entries.extend(self._parse_audit_log_content(content))
+                        except Exception as e:
+                            logger.debug(f"Error extracting {member} from audit archive: {e}")
+                            continue
+        except tarfile.TarError as e:
+            logger.warning(f"Error opening audit archive as tar.gz: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error parsing audit archive: {type(e).__name__}: {e}")
 
         return entries
 
@@ -578,6 +602,45 @@ def get_audit_for_object(
     return client.get_object_audit(object_ref, object_type, object_name, max_results)
 
 
+def _parse_timestamp(timestamp_value: Any) -> str:
+    """
+    Parse a timestamp value into a formatted string.
+
+    Handles multiple formats:
+    - ISO format strings (from Splunk): "2024-01-15T10:30:00"
+    - Unix timestamps (integers or numeric strings)
+    - Already formatted strings
+
+    Returns:
+        Formatted timestamp string or "N/A" if parsing fails
+    """
+    if not timestamp_value:
+        return "N/A"
+
+    ts_str = str(timestamp_value)
+
+    # Try ISO format first (most common from Splunk)
+    try:
+        # Handle ISO format with optional timezone
+        ts_clean = ts_str.replace("Z", "+00:00")
+        if "T" in ts_clean or "-" in ts_clean[:10]:
+            ts = datetime.fromisoformat(ts_clean)
+            return ts.strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        pass
+
+    # Try Unix timestamp (numeric)
+    try:
+        if ts_str.isdigit() or (ts_str.replace(".", "").isdigit() and ts_str.count(".") <= 1):
+            ts = datetime.fromtimestamp(float(ts_str))
+            return ts.strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError, OSError):
+        pass
+
+    # Return as-is if already looks like a formatted date
+    return ts_str
+
+
 def format_audit_summary(audit_info: Dict[str, Any]) -> Dict[str, str]:
     """
     Format audit info into a simple summary dict.
@@ -595,23 +658,13 @@ def format_audit_summary(audit_info: Dict[str, Any]) -> Dict[str, str]:
     timestamps = audit_info.get("timestamps", {})
 
     if timestamps.get("created"):
-        try:
-            # Try parsing as Unix timestamp first
-            ts = datetime.fromtimestamp(int(timestamps["created"]))
-            summary["Created"] = ts.strftime("%Y-%m-%d %H:%M:%S")
-        except (ValueError, TypeError):
-            # Otherwise use as string
-            summary["Created"] = str(timestamps["created"])
+        summary["Created"] = _parse_timestamp(timestamps["created"])
 
     if audit_info.get("created_by"):
         summary["Created By"] = audit_info["created_by"]
 
     if timestamps.get("last_modified"):
-        try:
-            ts = datetime.fromtimestamp(int(timestamps["last_modified"]))
-            summary["Last Modified"] = ts.strftime("%Y-%m-%d %H:%M:%S")
-        except (ValueError, TypeError):
-            summary["Last Modified"] = str(timestamps["last_modified"])
+        summary["Last Modified"] = _parse_timestamp(timestamps["last_modified"])
 
     if audit_info.get("last_modified_by"):
         summary["Modified By"] = audit_info["last_modified_by"]

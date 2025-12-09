@@ -14,7 +14,7 @@ import io
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.audit import AuditClient, get_audit_for_object, format_audit_summary, download_full_audit_log
+from lib.audit import AuditClient, get_audit_for_object, format_audit_summary, download_full_audit_log, _parse_timestamp
 
 
 class TestAuditClient:
@@ -200,6 +200,42 @@ class TestAuditClient:
                 call_args = mock_post.call_args
                 assert call_args.kwargs.get('auth') == ('splunkuser', 'splunkpass')
                 assert 'Authorization' not in call_args.kwargs.get('headers', {})
+
+
+class TestParseTimestamp:
+    """Tests for _parse_timestamp function."""
+
+    def test_parse_iso_format(self):
+        """Test parsing ISO format timestamp."""
+        result = _parse_timestamp("2024-01-15T10:30:00")
+        assert result == "2024-01-15 10:30:00"
+
+    def test_parse_iso_format_with_z(self):
+        """Test parsing ISO format with Z suffix."""
+        result = _parse_timestamp("2024-01-15T10:30:00Z")
+        assert "2024-01-15" in result
+        assert "10:30:00" in result
+
+    def test_parse_unix_timestamp(self):
+        """Test parsing Unix timestamp."""
+        # 1705315800 = 2024-01-15 10:30:00 UTC
+        result = _parse_timestamp("1705315800")
+        assert "2024-01-15" in result
+
+    def test_parse_unix_timestamp_float(self):
+        """Test parsing Unix timestamp with decimal."""
+        result = _parse_timestamp("1705315800.123")
+        assert "2024-01-15" in result
+
+    def test_parse_empty_value(self):
+        """Test parsing empty value."""
+        assert _parse_timestamp("") == "N/A"
+        assert _parse_timestamp(None) == "N/A"
+
+    def test_parse_already_formatted(self):
+        """Test parsing already formatted string."""
+        result = _parse_timestamp("Jan 15 10:30:00")
+        assert result == "Jan 15 10:30:00"
 
 
 class TestFormatAuditSummary:
