@@ -93,6 +93,7 @@ class ZoneCommand(BaseCommand):
         total_records = 0
 
         if zone_type == "authoritative":
+            # Standard DNS record types
             record_types = ["a", "aaaa", "cname", "mx", "txt", "ptr", "srv", "ns"]
 
             for rtype in record_types:
@@ -106,6 +107,17 @@ class ZoneCommand(BaseCommand):
                     total_records += count
                 except Exception:
                     record_counts[rtype.upper()] = 0
+
+            # Also count host records (these create A/AAAA records but are managed separately)
+            try:
+                hosts = self.client.get(
+                    "record:host",
+                    params={"zone": query, "view": actual_view}
+                )
+                record_counts["HOST"] = len(hosts)
+                total_records += len(hosts)
+            except Exception:
+                record_counts["HOST"] = 0
 
         # Get audit information
         audit_info = {}

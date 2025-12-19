@@ -13,6 +13,7 @@ All notable changes to DDI Toolkit will be documented in this file.
   - Adds `view_note` field explaining which view it was found in
   - Adds `available_in_views` field listing all views containing the network
 - **CLI Error Handling** - Fixed quiet mode to properly handle error responses instead of crashing with `'json'` key error
+- **Zone Record Counts** - Now includes HOST records in zone record counts (previously only counted standard DNS record types)
 
 ## [1.3.0] - 2025-12-18
 
