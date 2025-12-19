@@ -4,11 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddi-toolkit"
-version = "0.1.0"
+version = "1.2.0"
 description = "Swiss Army Knife for InfoBlox DDI Engineers"
 authors = [
-    {name = "User", email = "user@example.com"},
+    {name = "Marriott DDI Team"},
 ]
+readme = "README.md"
+license = {text = "MIT"}
 dependencies = [
     "requests>=2.31.0",
     "urllib3>=2.0.0",
@@ -17,6 +19,13 @@ dependencies = [
 ]
 requires-python = ">=3.8"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "responses>=0.23.0",
+]
+
 [project.scripts]
 ddi = "ddi_toolkit.main:main"
 
@@ -24,5 +33,6 @@ ddi = "ddi_toolkit.main:main"
 testpaths = ["tests"]
 python_files = "test_*.py"
 
-[tool.setuptools]
-packages = ["ddi_toolkit"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ddi_toolkit*"]
