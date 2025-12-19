@@ -145,30 +145,36 @@ class OutputWriter:
             "data": json_data
         }
 
-        with open(json_path, 'w') as f:
-            json.dump(output_json, f, indent=2, default=str)
+        try:
+            with open(json_path, 'w') as f:
+                json.dump(output_json, f, indent=2, default=str)
+        except IOError as e:
+            raise IOError(f"Failed to write JSON output to {json_path}: {e}")
 
         # Write CSV
         csv_path = self._get_filename("csv")
-        if records:
-            flat_records = [flatten_dict(r) for r in records]
+        try:
+            if records:
+                flat_records = [flatten_dict(r) for r in records]
 
-            # Collect all keys across all records
-            all_keys = set()
-            for r in flat_records:
-                all_keys.update(r.keys())
+                # Collect all keys across all records
+                all_keys = set()
+                for r in flat_records:
+                    all_keys.update(r.keys())
 
-            with open(csv_path, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=sorted(all_keys))
-                writer.writeheader()
-                writer.writerows(flat_records)
-        else:
-            # Empty CSV with metadata
-            with open(csv_path, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(["no_results"])
-                writer.writerow([f"query: {self.query}"])
-                writer.writerow([f"timestamp: {timestamp}"])
+                with open(csv_path, 'w', newline='') as f:
+                    writer = csv.DictWriter(f, fieldnames=sorted(all_keys))
+                    writer.writeheader()
+                    writer.writerows(flat_records)
+            else:
+                # Empty CSV with metadata
+                with open(csv_path, 'w', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["no_results"])
+                    writer.writerow([f"query: {self.query}"])
+                    writer.writerow([f"timestamp: {timestamp}"])
+        except IOError as e:
+            raise IOError(f"Failed to write CSV output to {csv_path}: {e}")
 
         self._print_summary(json_path, csv_path, record_count, summary)
 

@@ -192,15 +192,16 @@ class MainMenu:
                         choice = prompt_input("Choice", default="0")
                         try:
                             idx = int(choice)
-                            if 1 <= idx <= len(found_views):
-                                print(f"\n  {dim('Querying...')}")
-                                result = cmd.run(query, quiet=False, network_view=found_views[idx-1], all_views=False)
-                                if not result.get("error"):
-                                    print(success(f"\n  Query completed successfully!"))
-                                else:
-                                    print(error(f"\n  {result.get('error')}"))
                         except ValueError:
-                            pass
+                            idx = 0  # Invalid input, treat as cancel
+
+                        if 1 <= idx <= len(found_views):
+                            print(f"\n  {dim('Querying...')}")
+                            result = cmd.run(query, quiet=False, network_view=found_views[idx-1], all_views=False)
+                            if not result.get("error"):
+                                print(success(f"\n  Query completed successfully!"))
+                            else:
+                                print(error(f"\n  {result.get('error')}"))
                 else:
                     # Regular error (not found anywhere)
                     print(error(f"\n  {result.get('error')}"))

@@ -182,13 +182,32 @@ class WAPIClient:
         Returns:
             List of all matching objects
         """
+        MAX_PAGES = 1000  # Safety limit to prevent infinite loops
         all_results = []
         next_page_id = None
         total_fetched = 0
+        page_count = 0
+        seen_page_ids = set()
 
         while True:
+            page_count += 1
+            if page_count > MAX_PAGES:
+                raise WAPIError(
+                    f"Exceeded maximum page limit ({MAX_PAGES}). "
+                    "This may indicate an API issue.",
+                    status_code=500
+                )
+
             params = query_params.copy()
             if next_page_id:
+                # Detect duplicate page IDs (infinite loop)
+                if next_page_id in seen_page_ids:
+                    raise WAPIError(
+                        f"Duplicate page ID detected: {next_page_id}. "
+                        "This may indicate an API issue.",
+                        status_code=500
+                    )
+                seen_page_ids.add(next_page_id)
                 params["_page_id"] = next_page_id
 
             response = self._request("GET", object_type, params=params)

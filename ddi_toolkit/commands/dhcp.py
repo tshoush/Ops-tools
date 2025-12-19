@@ -155,7 +155,7 @@ class DHCPCommand(BaseCommand):
                     try:
                         ts = datetime.fromtimestamp(int(lease[field]))
                         lease[f"{field}_formatted"] = ts.strftime("%Y-%m-%d %H:%M:%S")
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError, OSError, OverflowError):
                         pass
 
         result = {

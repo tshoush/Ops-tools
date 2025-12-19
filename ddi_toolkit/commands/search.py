@@ -3,8 +3,12 @@ Intelligent search command with auto-detection and type prefixes.
 """
 
 import re
+import logging
 from typing import Dict, Any, List, Tuple, Optional
 from .base import BaseCommand
+from ..wapi import WAPIError
+
+logger = logging.getLogger(__name__)
 
 
 class SearchCommand(BaseCommand):
@@ -338,8 +342,10 @@ class SearchCommand(BaseCommand):
                         max_results=max_results
                     )
 
-        except Exception:
-            pass
+        except WAPIError as e:
+            logger.debug(f"Search failed for {obj_type}: {e.message}")
+        except Exception as e:
+            logger.warning(f"Unexpected error searching {obj_type}: {e}")
 
         # Deduplicate by _ref
         seen = set()

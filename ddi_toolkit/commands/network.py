@@ -2,47 +2,13 @@
 Network query command.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from .base import BaseCommand
 from ..audit import get_audit_for_object, format_audit_summary
 
 
-class NetworkCommand(BaseCommand):
-    """Query network information including DHCP and utilization."""
-
-    name = "network"
-    description = "Query network details, DHCP ranges, utilization, audit info"
-    aliases = ["net", "subnet"]
-
-    RETURN_FIELDS = [
-        "network", "network_view", "comment", "extattrs",
-        "options", "members", "utilization", "total_hosts",
-        "dhcp_utilization", "dynamic_hosts", "static_hosts"
-    ]
-
-    # Core range fields supported across WAPI versions
-    RANGE_RETURN_FIELDS = [
-        "start_addr", "end_addr", "server_association_type",
-        "member", "failover_association", "options", "comment",
-        "disable", "name"
-    ]
-
-    MEMBER_DHCP_FIELDS = [
-        "host_name", "ipv4addr", "enable_dhcp"
-    ]
-
-    IP_RETURN_FIELDS = [
-        "ip_address", "status", "types", "names", "mac_address",
-        "network", "network_view", "usage", "is_conflict"
-    ]
-
-"""
-Network query command.
-"""
-
-from typing import Dict, Any, List, Set, Tuple
-from .base import BaseCommand
-from ..audit import get_audit_for_object, format_audit_summary
+# Maximum IPs to fetch to prevent memory issues on large networks
+MAX_IP_FETCH = 10000
 
 
 class NetworkCommand(BaseCommand):
@@ -310,7 +276,7 @@ class NetworkCommand(BaseCommand):
     ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
         """Fetch IP addresses and calculate usage stats."""
         ip_addresses = []
-        ip_stats = {"total": 0, "used": 0, "unused": 0}
+        ip_stats = {"total": 0, "used": 0, "unused": 0, "truncated": False}
 
         if include_ips:
             all_ips = self.client.get(
@@ -318,10 +284,14 @@ class NetworkCommand(BaseCommand):
                 params=params,
                 return_fields=self.IP_RETURN_FIELDS,
                 paging=True,
-                page_size=1000
+                page_size=1000,
+                max_results=MAX_IP_FETCH
             )
 
             ip_stats["total"] = len(all_ips)
+            if len(all_ips) >= MAX_IP_FETCH:
+                ip_stats["truncated"] = True
+
             for ip in all_ips:
                 status = ip.get("status", "").upper()
                 if status == "UNUSED":
@@ -329,7 +299,7 @@ class NetworkCommand(BaseCommand):
                 else:
                     ip_stats["used"] += 1
                     ip_addresses.append(ip)
-        
+
         return ip_addresses, ip_stats
 
     def _get_audit_info(
