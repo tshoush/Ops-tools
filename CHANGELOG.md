@@ -4,6 +4,16 @@ All notable changes to DDI Toolkit will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2025-12-19
+
+### Fixed
+- **Auto View Search** - Network queries now automatically search all views when not found in specified view
+  - Previously returned error if network existed in different view
+  - Now automatically finds and returns network from correct view
+  - Adds `view_note` field explaining which view it was found in
+  - Adds `available_in_views` field listing all views containing the network
+- **CLI Error Handling** - Fixed quiet mode to properly handle error responses instead of crashing with `'json'` key error
+
 ## [1.3.0] - 2025-12-18
 
 ### Added
