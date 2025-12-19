@@ -91,9 +91,14 @@ class NetworkCommand(BaseCommand):
         )
 
         # 7. Build Response
+        view_note = network.get("_view_note")
+        all_views_found = network.get("_all_views", [])
+
         result = {
             "network": network.get("network"),
             "network_view": network.get("network_view"),
+            "view_note": view_note,  # Note if found in different view than requested
+            "available_in_views": all_views_found if len(all_views_found) > 1 else None,
             "comment": network.get("comment", ""),
             "utilization": {
                 "percentage": network.get("utilization"),
@@ -131,6 +136,8 @@ class NetworkCommand(BaseCommand):
             "_ref": object_ref,
             "_summary": {
                 "Network": query,
+                "View": network.get("network_view", "N/A"),
+                **({"Note": view_note} if view_note else {}),
                 "Utilization": f"{network.get('utilization', 'N/A')}%",
                 "Total Hosts": network.get("total_hosts", "N/A"),
                 "Used IPs": ip_stats["used"],
@@ -147,9 +154,17 @@ class NetworkCommand(BaseCommand):
     def _get_network(
         self, query: str, network_view: str, all_views: bool
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Fetch the network object, handling view logic."""
+        """Fetch the network object, handling view logic.
+
+        If network not found in specified view, automatically searches all views
+        and returns the first match with info about which view it was found in.
+        """
+        # Normalize network_view
+        if not network_view or network_view == "None":
+            network_view = "default"
+
         params = {"network": query}
-        if not all_views and network_view:
+        if not all_views:
             params["network_view"] = network_view
 
         networks = self.client.get(
@@ -159,34 +174,36 @@ class NetworkCommand(BaseCommand):
         )
 
         if not networks:
-            # Check if network exists in other views
-            other_views = []
+            # Network not found in specified view - search all views automatically
             if not all_views:
                 all_networks = self.client.get(
                     "network",
                     params={"network": query},
-                    return_fields=["network", "network_view"]
+                    return_fields=self.RETURN_FIELDS
                 )
-                other_views = [
-                    n.get("network_view") for n in all_networks 
-                    if n.get("network_view")
-                ]
 
-            if other_views:
-                return {}, {
-                    "error": f"Network {query} not found in view '{network_view}'",
-                    "found_in_views": other_views,
-                    "query": query,
-                    "network_view": network_view,
-                    "hint": f"Network exists in: {', '.join(other_views)}"
-                }
-            else:
-                return {}, {
-                    "error": f"Network {query} not found",
-                    "query": query,
-                    "network_view": network_view
-                }
-        
+                if all_networks:
+                    # Found in other view(s) - use the first one and note where it was found
+                    network = all_networks[0]
+                    found_view = network.get("network_view", "unknown")
+                    other_views = [
+                        n.get("network_view") for n in all_networks
+                        if n.get("network_view")
+                    ]
+
+                    # Add metadata about the view search
+                    network["_view_note"] = f"Not found in '{network_view}', found in '{found_view}'"
+                    network["_all_views"] = other_views
+
+                    return network, {}
+
+            # Not found anywhere
+            return {}, {
+                "error": f"Network {query} not found",
+                "query": query,
+                "network_view": network_view if not all_views else "all"
+            }
+
         return networks[0], {}
 
     def _get_dhcp_ranges(self, params: Dict[str, str]) -> List[Dict[str, Any]]:

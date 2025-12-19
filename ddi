@@ -117,12 +117,23 @@ def run_quiet_mode():
             cmd = cmd_class()
             result = cmd.run(query, quiet=True, **kwargs)
 
+            # Check if result is an error (no 'json' key)
+            if isinstance(result, dict) and 'error' in result:
+                print_quiet_error(result.get('error'), {
+                    k: v for k, v in result.items() if k != 'error'
+                })
+
             # Output just the JSON file path
-            print(result['json'])
-            sys.exit(0)
+            if 'json' in result:
+                print(result['json'])
+                sys.exit(0)
+            else:
+                print_quiet_error("Unexpected result format", result)
 
         except WAPIError as e:
             print_quiet_error(e.message, {"status_code": e.status_code})
+        except KeyError as e:
+            print_quiet_error(f"Missing key in result: {e}")
         except Exception as e:
             print_quiet_error(str(e))
 
