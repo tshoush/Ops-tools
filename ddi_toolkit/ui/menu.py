@@ -77,6 +77,7 @@ class MainMenu:
   {Colors.CYAN}[4]{Colors.RESET} Query Container      {dim("Network containers, hierarchy")}
   {Colors.CYAN}[5]{Colors.RESET} Query DHCP           {dim("Pools, leases, failover")}
   {Colors.CYAN}[6]{Colors.RESET} Search               {dim("Global search across objects")}
+  {Colors.CYAN}[7]{Colors.RESET} Bulk Operations      {dim("Create/modify/delete from file")}
 
   {dim("─" * 56)}
 
@@ -104,6 +105,8 @@ class MainMenu:
             '4': self._query_container,
             '5': self._query_dhcp,
             '6': self._search,
+            '7': self._bulk_operations,
+            'B': self._bulk_operations,
             'V': self._select_network_view,
             'C': self._configure,
             'T': self._test_connection,
@@ -521,6 +524,166 @@ class MainMenu:
         print(f"\n  {dim('Expanding search to all types...')}\n")
         self._run_command('search', f"all:{query}", network_view=view, all_views=is_all)
 
+    def _bulk_operations(self):
+        """Bulk operations submenu for create/modify/delete."""
+        if not self._ensure_configured():
+            return
+
+        from ..commands.bulk import SUPPORTED_OBJECT_TYPES
+
+        while True:
+            clear_screen()
+            print(header("\n  ═══ BULK OPERATIONS ═══\n"))
+
+            print(f"""
+  {bold("⚠️  WARNING: Bulk operations modify your InfoBlox data!")}
+  {dim("Always test with --dry-run first.")}
+
+  {bold("OPERATIONS")}
+
+  {Colors.CYAN}[1]{Colors.RESET} Bulk Create        {dim("Create objects from CSV/JSON file")}
+  {Colors.CYAN}[2]{Colors.RESET} Bulk Modify        {dim("Update objects from CSV/JSON file")}
+  {Colors.CYAN}[3]{Colors.RESET} Bulk Delete        {dim("Delete objects from CSV/JSON file")}
+
+  {dim("─" * 56)}
+
+  {Colors.YELLOW}[B]{Colors.RESET} Back to Main Menu
+            """)
+
+            choice = input(f"\n  {bold('Select option')}: ").strip().upper()
+
+            if choice == 'B' or choice == '':
+                return
+            elif choice == '1':
+                self._bulk_create()
+            elif choice == '2':
+                self._bulk_modify()
+            elif choice == '3':
+                self._bulk_delete()
+            else:
+                print(warning("\n  Invalid option."))
+                input("\n  Press Enter to continue...")
+
+    def _bulk_create(self):
+        """Bulk create objects."""
+        self._run_bulk_operation("create")
+
+    def _bulk_modify(self):
+        """Bulk modify objects."""
+        self._run_bulk_operation("modify")
+
+    def _bulk_delete(self):
+        """Bulk delete objects."""
+        self._run_bulk_operation("delete")
+
+    def _run_bulk_operation(self, operation: str):
+        """Run a bulk operation (create/modify/delete)."""
+        from ..commands.bulk import SUPPORTED_OBJECT_TYPES
+        from ..commands import get_command
+        from pathlib import Path
+
+        clear_screen()
+        print(header(f"\n  ═══ BULK {operation.upper()} ═══\n"))
+
+        # Show supported object types
+        print(f"  {bold('Supported Object Types:')}")
+        type_list = list(SUPPORTED_OBJECT_TYPES.keys())
+        for i, t in enumerate(type_list):
+            print(f"    {dim(f'[{i+1}]')} {t}")
+
+        print()
+
+        # Get object type
+        type_choice = prompt_input(
+            "Object Type",
+            hint="e.g., network, host, a, cname, fixedaddress"
+        )
+
+        if not type_choice:
+            return
+
+        type_choice = type_choice.lower()
+        if type_choice not in SUPPORTED_OBJECT_TYPES:
+            # Check if it's a number
+            try:
+                idx = int(type_choice) - 1
+                if 0 <= idx < len(type_list):
+                    type_choice = type_list[idx]
+                else:
+                    print(error(f"\n  Invalid object type: {type_choice}"))
+                    input("\n  Press Enter to continue...")
+                    return
+            except ValueError:
+                print(error(f"\n  Unsupported object type: {type_choice}"))
+                print(f"  {dim(f'Supported: {', '.join(type_list)}')}")
+                input("\n  Press Enter to continue...")
+                return
+
+        # Get file path
+        file_path = prompt_input(
+            "Input File",
+            hint="CSV or JSON file path"
+        )
+
+        if not file_path:
+            return
+
+        file_path = Path(file_path).expanduser()
+        if not file_path.exists():
+            print(error(f"\n  File not found: {file_path}"))
+            input("\n  Press Enter to continue...")
+            return
+
+        # Dry run option
+        dry_run = prompt_confirm(
+            "Dry Run",
+            default=True,
+            hint="Preview changes without executing (recommended first)"
+        )
+
+        # Confirm if not dry run and operation is delete
+        if not dry_run and operation == "delete":
+            confirm = prompt_confirm(
+                f"⚠️  Confirm DELETE",
+                default=False,
+                hint="This will permanently delete objects!"
+            )
+            if not confirm:
+                print(f"\n  {dim('Operation cancelled.')}")
+                input("\n  Press Enter to continue...")
+                return
+
+        # Execute
+        print(f"\n  {dim(f'Running bulk {operation}...')}\n")
+
+        try:
+            cmd_class = get_command('bulk')
+            cmd = cmd_class()
+            result = cmd.run(
+                operation,
+                quiet=False,
+                object_type=type_choice,
+                file=str(file_path),
+                dry_run=dry_run,
+                continue_on_error=True
+            )
+
+            if result.get("error"):
+                print(error(f"\n  Error: {result.get('error')}"))
+                if result.get("validation_errors"):
+                    print(f"\n  {bold('Validation Errors:')}")
+                    for err in result.get("validation_errors", [])[:5]:
+                        print(f"    - Row {err.get('index', '?')}: {err.get('error', 'Unknown')}")
+            else:
+                print(success(f"\n  Bulk {operation} completed!"))
+
+        except WAPIError as e:
+            print(error(f"\n  API Error: {e.message}"))
+        except Exception as e:
+            print(error(f"\n  Error: {e}"))
+
+        input("\n  Press Enter to continue...")
+
     def _select_network_view(self):
         """Network view selection submenu."""
         if not self._ensure_configured():
@@ -674,6 +837,11 @@ class MainMenu:
     $ ./ddi -q container 10.0.0.0/8
     $ ./ddi -q dhcp ranges --network 10.0.0.0/24
     $ ./ddi -q search "web-server"
+
+  {Colors.CYAN}Bulk Operations{Colors.RESET}
+    $ ./ddi -q bulk create network --file networks.json
+    $ ./ddi -q bulk modify host --file hosts.csv --dry-run
+    $ ./ddi -q bulk delete fixedaddress --file to_delete.csv
 
   {bold("QUIET MODE OPTIONS")}
     --view <name>      Specify network or DNS view

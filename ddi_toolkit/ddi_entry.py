@@ -84,6 +84,29 @@ def run_quiet_mode():
         """Global search."""
         _run_quiet_command('search', query, network_view=view)
 
+    @cli.command()
+    @click.argument('operation', type=click.Choice(['create', 'modify', 'delete']))
+    @click.argument('object_type')
+    @click.option('--file', '-f', required=True, help='CSV or JSON file with objects')
+    @click.option('--dry-run', is_flag=True, help='Preview changes without executing')
+    @click.option('--stop-on-error', is_flag=True, help='Stop on first error')
+    def bulk(operation, object_type, file, dry_run, stop_on_error):
+        """Bulk create/modify/delete objects from file.
+
+        Examples:
+            ./ddi -q bulk create network --file networks.json
+            ./ddi -q bulk modify host --file hosts.csv --dry-run
+            ./ddi -q bulk delete fixedaddress --file to_delete.csv
+        """
+        _run_quiet_command(
+            'bulk',
+            operation,
+            object_type=object_type,
+            file=file,
+            dry_run=dry_run,
+            continue_on_error=not stop_on_error
+        )
+
     def _run_quiet_command(cmd_name: str, query: str, **kwargs):
         """Execute command in quiet mode."""
         try:

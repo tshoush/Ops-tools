@@ -4,6 +4,32 @@ All notable changes to DDI Toolkit will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-12-18
+
+### Added
+- **Bulk Operations** - Create, modify, and delete InfoBlox objects in bulk
+  - Support for JSON and CSV input files
+  - Object types: network, networkcontainer, host, a, cname, ptr, mx, txt, fixedaddress, zone, range
+  - Dry-run mode to preview changes without executing
+  - Continue-on-error or stop-on-first-error modes
+  - Detailed results with success/failure counts
+- **WAPI Mutation Methods** - Added create(), update(), delete() to WAPIClient
+- **CLI Bulk Command** - `./ddi -q bulk <operation> <type> --file <path>`
+- **Interactive Bulk Menu** - New menu option for guided bulk operations
+- 32 new tests for bulk operations
+
+### Examples
+```bash
+# Create networks from JSON file
+./ddi -q bulk create network --file networks.json
+
+# Modify hosts with dry-run preview
+./ddi -q bulk modify host --file hosts.csv --dry-run
+
+# Delete records, stop on first error
+./ddi -q bulk delete fixedaddress --file to_delete.csv --stop-on-error
+```
+
 ## [1.2.0] - 2025-12-18
 
 ### Added

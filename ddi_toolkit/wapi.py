@@ -342,6 +342,95 @@ class WAPIClient:
 
         return self.get("search", params=params)
 
+    def create(
+        self,
+        object_type: str,
+        data: Dict[str, Any],
+        return_fields: Optional[List[str]] = None
+    ) -> str:
+        """
+        Create a new object in InfoBlox.
+
+        Args:
+            object_type: WAPI object type (e.g., 'network', 'record:host')
+            data: Object data to create
+            return_fields: Fields to return in response
+
+        Returns:
+            The _ref of the created object
+
+        Raises:
+            WAPIError: On creation failure
+        """
+        params = {}
+        if return_fields:
+            params["_return_fields+"] = ",".join(return_fields)
+
+        result = self._request("POST", object_type, params=params, data=data)
+
+        # POST returns the _ref string directly
+        if isinstance(result, str):
+            return result
+        elif isinstance(result, dict) and "_ref" in result:
+            return result["_ref"]
+        else:
+            return str(result)
+
+    def update(
+        self,
+        ref: str,
+        data: Dict[str, Any],
+        return_fields: Optional[List[str]] = None
+    ) -> str:
+        """
+        Update an existing object by its _ref.
+
+        Args:
+            ref: Object reference string (e.g., 'network/ZG5z...:10.0.0.0/24/default')
+            data: Fields to update
+            return_fields: Fields to return in response
+
+        Returns:
+            The _ref of the updated object
+
+        Raises:
+            WAPIError: On update failure
+        """
+        params = {}
+        if return_fields:
+            params["_return_fields+"] = ",".join(return_fields)
+
+        result = self._request("PUT", ref, params=params, data=data)
+
+        if isinstance(result, str):
+            return result
+        elif isinstance(result, dict) and "_ref" in result:
+            return result["_ref"]
+        else:
+            return str(result)
+
+    def delete(self, ref: str) -> str:
+        """
+        Delete an object by its _ref.
+
+        Args:
+            ref: Object reference string
+
+        Returns:
+            The _ref of the deleted object
+
+        Raises:
+            WAPIError: On deletion failure
+        """
+        result = self._request("DELETE", ref)
+
+        if isinstance(result, str):
+            return result
+        elif isinstance(result, dict) and "_ref" in result:
+            return result["_ref"]
+        else:
+            return str(result)
+
     def test_connection(self) -> Dict[str, Any]:
         """
         Test connection to Grid Master.

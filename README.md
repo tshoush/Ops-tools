@@ -6,6 +6,7 @@ A Swiss Army Knife for InfoBlox DDI Engineers. Query networks, IPs, DNS zones, D
 
 - **Interactive TUI** - Menu-driven interface for guided queries
 - **Quiet Mode** - Scripting-friendly with JSON/CSV output
+- **Bulk Operations** - Create, modify, delete objects from CSV/JSON files
 - **Network View Support** - Query default view, all views, or specific views
 - **Audit Trail** - Create/modify dates and admin users for all objects
 - **Splunk Integration** - Extended audit history (optional)
@@ -318,6 +319,75 @@ Intelligent search with auto-detection and type prefixes.
   - `[E]` Expand to full search
   - `[N]` New search
 - Provides suggestions when no results found
+
+### bulk
+
+Create, modify, or delete InfoBlox objects in bulk from CSV or JSON files.
+
+```bash
+# Create networks from JSON file
+./ddi -q bulk create network --file networks.json
+
+# Modify hosts with dry-run preview
+./ddi -q bulk modify host --file hosts.csv --dry-run
+
+# Delete records, stop on first error
+./ddi -q bulk delete fixedaddress --file to_delete.csv --stop-on-error
+```
+
+**Operations:**
+- `create` - Create new objects
+- `modify` - Update existing objects (by _ref or identifier lookup)
+- `delete` - Delete objects (by _ref or identifier lookup)
+
+**Supported Object Types:**
+| Type | WAPI Object | Required Fields |
+|------|-------------|-----------------|
+| `network` | network | network |
+| `networkcontainer` | networkcontainer | network |
+| `host` | record:host | name, ipv4addrs |
+| `a` | record:a | name, ipv4addr |
+| `cname` | record:cname | name, canonical |
+| `ptr` | record:ptr | ptrdname, ipv4addr |
+| `mx` | record:mx | name, mail_exchanger, preference |
+| `txt` | record:txt | name, text |
+| `fixedaddress` | fixedaddress | ipv4addr, mac |
+| `zone` | zone_auth | fqdn |
+| `range` | range | start_addr, end_addr, network |
+
+**Options:**
+- `--file, -f` - Input CSV or JSON file (required)
+- `--dry-run` - Preview changes without executing
+- `--stop-on-error` - Stop on first error (default: continue)
+
+**JSON Input Format:**
+```json
+[
+  {"network": "10.99.1.0/24", "comment": "Test Network 1"},
+  {"network": "10.99.2.0/24", "comment": "Test Network 2"}
+]
+```
+
+**CSV Input Format:**
+```csv
+network,comment,network_view
+10.99.1.0/24,Test Network 1,default
+10.99.2.0/24,Test Network 2,default
+```
+
+**Output:**
+```json
+{
+  "operation": "create",
+  "object_type": "network",
+  "total": 2,
+  "successful": 2,
+  "failed": 0,
+  "success_rate": "100.0%",
+  "successful_operations": [...],
+  "errors": []
+}
+```
 
 ---
 

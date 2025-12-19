@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddi-toolkit"
-version = "1.2.0"
+version = "1.3.0"
 description = "Swiss Army Knife for InfoBlox DDI Engineers"
 authors = [
     {name = "Marriott DDI Team"},
