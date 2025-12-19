@@ -14,7 +14,7 @@ import io
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.audit import AuditClient, get_audit_for_object, format_audit_summary, download_full_audit_log, _parse_timestamp
+from ddi_toolkit.audit import AuditClient, get_audit_for_object, format_audit_summary, download_full_audit_log, _parse_timestamp
 
 
 class TestAuditClient:
@@ -65,7 +65,7 @@ class TestAuditClient:
 
     def test_get_object_audit_splunk_disabled(self, mock_config_splunk_disabled):
         """Test audit when Splunk is disabled."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
             result = client.get_object_audit(
                 object_ref="network/test:10.20.30.0/24/default",
@@ -83,8 +83,8 @@ class TestAuditClient:
         mock_response.status_code = 200
         mock_response.text = '{"result": {"_time": "2024-01-15T10:30:00", "admin": "jsmith", "action": "INSERT"}}'
 
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
-            with patch('lib.audit.requests.post', return_value=mock_response):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_enabled):
+            with patch('ddi_toolkit.audit.requests.post', return_value=mock_response):
                 client = AuditClient()
                 result = client.get_object_audit(
                     object_ref="network/test:10.20.30.0/24/default",
@@ -97,7 +97,7 @@ class TestAuditClient:
 
     def test_extract_search_term_network(self):
         """Test extracting search term from network ref."""
-        with patch('lib.audit.load_config', return_value={"splunk": {"enabled": False}}):
+        with patch('ddi_toolkit.audit.load_config', return_value={"splunk": {"enabled": False}}):
             client = AuditClient()
 
             # Test network CIDR extraction
@@ -106,7 +106,7 @@ class TestAuditClient:
 
     def test_extract_search_term_simple(self):
         """Test extracting search term from simple ref."""
-        with patch('lib.audit.load_config', return_value={"splunk": {"enabled": False}}):
+        with patch('ddi_toolkit.audit.load_config', return_value={"splunk": {"enabled": False}}):
             client = AuditClient()
 
             # Test simple extraction
@@ -115,14 +115,14 @@ class TestAuditClient:
 
     def test_extract_search_term_none(self):
         """Test extracting search term from None."""
-        with patch('lib.audit.load_config', return_value={"splunk": {"enabled": False}}):
+        with patch('ddi_toolkit.audit.load_config', return_value={"splunk": {"enabled": False}}):
             client = AuditClient()
             term = client._extract_search_term(None)
             assert term is None
 
     def test_extract_audit_metadata(self, mock_config_splunk_enabled):
         """Test extracting metadata from Splunk results."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_enabled):
             client = AuditClient()
             audit_info = {"timestamps": {}, "created_by": None, "last_modified_by": None}
 
@@ -140,7 +140,7 @@ class TestAuditClient:
 
     def test_normalize_splunk_result(self, mock_config_splunk_enabled):
         """Test normalizing Splunk result."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_enabled):
             client = AuditClient()
 
             raw_result = {
@@ -162,8 +162,8 @@ class TestAuditClient:
         """Test handling Splunk connection error."""
         import requests
 
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
-            with patch('lib.audit.requests.post', side_effect=requests.exceptions.ConnectionError()):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_enabled):
+            with patch('ddi_toolkit.audit.requests.post', side_effect=requests.exceptions.ConnectionError()):
                 client = AuditClient()
                 results = client._get_splunk_audit("10.20.30.0/24", "NETWORK")
 
@@ -176,8 +176,8 @@ class TestAuditClient:
         mock_response = Mock()
         mock_response.status_code = 401
 
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_enabled):
-            with patch('lib.audit.requests.post', return_value=mock_response):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_enabled):
+            with patch('ddi_toolkit.audit.requests.post', return_value=mock_response):
                 client = AuditClient()
                 results = client._get_splunk_audit("10.20.30.0/24", "NETWORK")
 
@@ -191,8 +191,8 @@ class TestAuditClient:
         mock_response.status_code = 200
         mock_response.text = '{"result": {"_time": "2024-01-15T10:30:00", "admin": "jsmith", "action": "INSERT"}}'
 
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_userpass):
-            with patch('lib.audit.requests.post', return_value=mock_response) as mock_post:
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_userpass):
+            with patch('ddi_toolkit.audit.requests.post', return_value=mock_response) as mock_post:
                 client = AuditClient()
                 results = client._get_splunk_audit("10.20.30.0/24", "NETWORK")
 
@@ -294,7 +294,7 @@ class TestGetAuditForObject:
             }
         }
 
-        with patch('lib.audit.load_config', return_value=mock_config):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config):
             with patch.object(AuditClient, '_get_fileop_audit', return_value=[]):
                 result = get_audit_for_object(
                     object_ref="network/test:10.20.30.0/24/default",
@@ -337,7 +337,7 @@ class TestFileopAudit:
 
     def test_parse_audit_line_with_timestamp(self, mock_config_splunk_disabled):
         """Test parsing audit line with ISO timestamp."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
 
             line = "2024-01-15 10:30:00 admin=jsmith INSERT NETWORK 10.99.1.0/24"
@@ -351,7 +351,7 @@ class TestFileopAudit:
 
     def test_parse_audit_line_syslog_format(self, mock_config_splunk_disabled):
         """Test parsing audit line with syslog timestamp."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
 
             line = "Jan 15 10:30:00 infoblox audit: user=admin DELETE ZONE example.com"
@@ -365,7 +365,7 @@ class TestFileopAudit:
 
     def test_parse_audit_archive(self, mock_config_splunk_disabled):
         """Test parsing audit log from tar.gz archive."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
 
             log_content = """2024-01-15 10:30:00 admin=jsmith INSERT NETWORK 10.99.1.0/24
@@ -380,7 +380,7 @@ class TestFileopAudit:
 
     def test_get_fileop_audit_filters_by_name(self, mock_config_splunk_disabled):
         """Test fileop audit filters by object name."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
 
             # Pre-populate cache with test entries
@@ -398,7 +398,7 @@ class TestFileopAudit:
 
     def test_get_fileop_audit_filters_by_type(self, mock_config_splunk_disabled):
         """Test fileop audit filters by object type."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
 
             # Pre-populate cache
@@ -416,7 +416,7 @@ class TestFileopAudit:
 
     def test_audit_cache_expiration(self, mock_config_splunk_disabled):
         """Test that audit cache expires after TTL."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
             client._cache_ttl = 300  # 5 minutes
 
@@ -433,7 +433,7 @@ class TestFileopAudit:
 
     def test_audit_cache_valid(self, mock_config_splunk_disabled):
         """Test that valid cache is used."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
             client = AuditClient()
 
             # Set recent cache (valid)
@@ -458,7 +458,7 @@ class TestFileopAudit:
             }
         }
 
-        with patch('lib.audit.load_config', return_value=mock_config):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config):
             client = AuditClient()
 
             # Mock Splunk to fail
@@ -478,8 +478,8 @@ class TestFileopAudit:
 
     def test_download_audit_log_success(self, mock_config_splunk_disabled, mock_infoblox_creds):
         """Test successful audit log download."""
-        with patch('lib.audit.load_config', return_value=mock_config_splunk_disabled):
-            with patch('lib.audit.get_infoblox_creds', return_value=mock_infoblox_creds):
+        with patch('ddi_toolkit.audit.load_config', return_value=mock_config_splunk_disabled):
+            with patch('ddi_toolkit.audit.get_infoblox_creds', return_value=mock_infoblox_creds):
                 client = AuditClient()
 
                 # Mock fileop response
@@ -497,7 +497,7 @@ class TestFileopAudit:
                 download_resp.status_code = 200
                 download_resp.content = archive
 
-                with patch('lib.audit.requests.post', side_effect=[fileop_resp, download_resp]):
+                with patch('ddi_toolkit.audit.requests.post', side_effect=[fileop_resp, download_resp]):
                     entries = client._download_audit_log()
 
                     assert len(entries) >= 1
@@ -521,8 +521,8 @@ class TestDownloadFullAuditLog:
         download_resp.status_code = 200
         download_resp.content = b"test archive content"
 
-        with patch('lib.audit.get_infoblox_creds', return_value=mock_creds):
-            with patch('lib.audit.requests.post', side_effect=[fileop_resp, download_resp]):
+        with patch('ddi_toolkit.audit.get_infoblox_creds', return_value=mock_creds):
+            with patch('ddi_toolkit.audit.requests.post', side_effect=[fileop_resp, download_resp]):
                 success, message = download_full_audit_log()
 
                 assert success is True
@@ -535,8 +535,8 @@ class TestDownloadFullAuditLog:
         fileop_resp = Mock()
         fileop_resp.status_code = 500
 
-        with patch('lib.audit.get_infoblox_creds', return_value=mock_creds):
-            with patch('lib.audit.requests.post', return_value=fileop_resp):
+        with patch('ddi_toolkit.audit.get_infoblox_creds', return_value=mock_creds):
+            with patch('ddi_toolkit.audit.requests.post', return_value=fileop_resp):
                 success, message = download_full_audit_log()
 
                 assert success is False

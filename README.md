@@ -259,20 +259,65 @@ Query DHCP ranges, leases, or failover status.
 
 ### search
 
-Global search across all object types.
+Intelligent search with auto-detection and type prefixes.
 
 ```bash
-./ddi -q search "search-term"
+# Auto-detect input type
+./ddi -q search "server.example.com"     # Detected as FQDN
+./ddi -q search "10.20.30.40"            # Detected as IP
+./ddi -q search "00:50:56:aa:bb:cc"      # Detected as MAC
+./ddi -q search "10.0.0.0/24"            # Detected as CIDR
+./ddi -q search "example.com"            # Detected as Zone
+
+# Use type prefixes to force specific search
+./ddi -q search "host:server.example.com"   # Host records only
+./ddi -q search "ptr:10.20.30.40"           # PTR records only
+./ddi -q search "zone:example.com"          # Zones only
+./ddi -q search "a:webserver.example.com"   # A records only
+./ddi -q search "cname:www.example.com"     # CNAME records only
+./ddi -q search "ip:10.20.30.40"            # IP details only
+./ddi -q search "mac:00:50:56:aa:bb:cc"     # Fixed addresses by MAC
+./ddi -q search "net:10.0.0.0"              # Networks/containers
+./ddi -q search "all:webserver"             # Full search (all types)
 ```
 
-**Searches:**
-- Networks (by comment or CIDR)
-- Network containers
-- DNS zones
-- Host records
-- A records
-- CNAME records
-- Fixed addresses (by name or MAC)
+**Auto-Detection Behavior:**
+
+| Input Type | Detected As | Searches |
+|------------|-------------|----------|
+| `10.20.30.40` | IP Address | ipv4address, host, A, PTR, fixedaddress |
+| `10.0.0.0/24` | CIDR | network, networkcontainer |
+| `00:50:56:...` | MAC Address | fixedaddress, lease |
+| `host.domain.com` | FQDN | host, A, CNAME, PTR |
+| `domain.com` | Zone | zone_auth, host, A |
+| Other text | Generic | host, A, CNAME, zone, network, fixedaddress |
+
+**Type Prefixes:**
+
+| Prefix | Searches |
+|--------|----------|
+| `host:` | Host records only |
+| `ptr:` | PTR records only |
+| `a:` | A records only |
+| `cname:` | CNAME records only |
+| `mx:` | MX records only |
+| `txt:` | TXT records only |
+| `srv:` | SRV records only |
+| `ns:` | NS records only |
+| `zone:` | Zones only |
+| `ip:` | IP address details only |
+| `mac:` | Fixed addresses/leases by MAC |
+| `net:` | Networks and containers |
+| `all:` | Full search (all types) |
+
+**Interactive Mode Features:**
+- Shows detected input type before searching
+- Offers refinement options after results:
+  - `[P]` PTR lookup (for IP searches)
+  - `[Z]` Zone info (for FQDN searches)
+  - `[E]` Expand to full search
+  - `[N]` New search
+- Provides suggestions when no results found
 
 ---
 

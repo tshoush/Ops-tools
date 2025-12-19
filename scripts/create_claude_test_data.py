@@ -24,7 +24,7 @@ import urllib3
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.config import get_infoblox_creds
+from ddi_toolkit.config import get_infoblox_creds
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

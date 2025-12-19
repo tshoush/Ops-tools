@@ -21,6 +21,11 @@ class WAPIError(Exception):
         super().__init__(self.message)
 
 
+class WAPINotFoundError(WAPIError):
+    """Exception raised when an object is not found (404)."""
+    pass
+
+
 class WAPIClient:
     """InfoBlox WAPI REST Client."""
 
@@ -53,7 +58,8 @@ class WAPIClient:
         method: str,
         endpoint: str,
         params: Optional[Dict] = None,
-        data: Optional[Dict] = None
+        data: Optional[Dict] = None,
+        raise_not_found: bool = False
     ) -> Any:
         """
         Make an HTTP request to WAPI.
@@ -63,6 +69,7 @@ class WAPIClient:
             endpoint: API endpoint (e.g., 'network', 'ipv4address')
             params: Query parameters
             data: Request body for POST/PUT
+            raise_not_found: If True, raise WAPINotFoundError on 404
 
         Returns:
             Parsed JSON response
@@ -85,6 +92,8 @@ class WAPIClient:
             if response.status_code == 401:
                 raise WAPIError("Authentication failed. Check credentials.", 401)
             elif response.status_code == 404:
+                if raise_not_found:
+                    raise WAPINotFoundError(f"Object not found: {endpoint}", 404)
                 return []  # Not found is often valid (empty result)
             elif response.status_code >= 400:
                 error_text = response.text
@@ -281,7 +290,7 @@ class WAPIClient:
         if return_fields:
             params["_return_fields+"] = ",".join(return_fields)
 
-        result = self._request("GET", ref, params=params)
+        result = self._request("GET", ref, params=params, raise_not_found=True)
 
         if isinstance(result, list):
             return result[0] if result else {}

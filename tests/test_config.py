@@ -11,7 +11,7 @@ from unittest.mock import patch, mock_open
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.config import (
+from ddi_toolkit.config import (
     encode_password,
     decode_password,
     load_config,
@@ -64,13 +64,13 @@ class TestConfigFile:
 
     def test_load_config_default(self, tmp_path):
         """Test loading config when file doesn't exist returns defaults."""
-        with patch('lib.config.CONFIG_FILE', tmp_path / "nonexistent.json"):
+        with patch('ddi_toolkit.config.CONFIG_FILE', tmp_path / "nonexistent.json"):
             config = load_config()
             assert config == DEFAULT_CONFIG
 
     def test_load_config_existing(self, temp_config_file, mock_config):
         """Test loading existing config file."""
-        with patch('lib.config.CONFIG_FILE', temp_config_file):
+        with patch('ddi_toolkit.config.CONFIG_FILE', temp_config_file):
             config = load_config()
             assert config["infoblox"]["grid_master"] == "192.168.1.100"
             assert config["infoblox"]["username"] == "admin"
@@ -78,7 +78,7 @@ class TestConfigFile:
     def test_save_config(self, tmp_path, mock_config):
         """Test saving config to file."""
         config_path = tmp_path / "test_config.json"
-        with patch('lib.config.CONFIG_FILE', config_path):
+        with patch('ddi_toolkit.config.CONFIG_FILE', config_path):
             save_config(mock_config)
 
             assert config_path.exists()
@@ -94,12 +94,12 @@ class TestConfigFile:
 
     def test_config_exists_true(self, temp_config_file):
         """Test config_exists returns True when file exists."""
-        with patch('lib.config.CONFIG_FILE', temp_config_file):
+        with patch('ddi_toolkit.config.CONFIG_FILE', temp_config_file):
             assert config_exists() is True
 
     def test_config_exists_false(self, tmp_path):
         """Test config_exists returns False when file doesn't exist."""
-        with patch('lib.config.CONFIG_FILE', tmp_path / "nonexistent.json"):
+        with patch('ddi_toolkit.config.CONFIG_FILE', tmp_path / "nonexistent.json"):
             assert config_exists() is False
 
 
@@ -108,12 +108,12 @@ class TestIsConfigured:
 
     def test_is_configured_true(self, temp_config_file, mock_config):
         """Test is_configured returns True with valid config."""
-        with patch('lib.config.CONFIG_FILE', temp_config_file):
+        with patch('ddi_toolkit.config.CONFIG_FILE', temp_config_file):
             assert is_configured() is True
 
     def test_is_configured_no_file(self, tmp_path):
         """Test is_configured returns False when no config file."""
-        with patch('lib.config.CONFIG_FILE', tmp_path / "nonexistent.json"):
+        with patch('ddi_toolkit.config.CONFIG_FILE', tmp_path / "nonexistent.json"):
             assert is_configured() is False
 
     def test_is_configured_missing_grid_master(self, tmp_path):
@@ -127,7 +127,7 @@ class TestIsConfigured:
         with open(config_path, 'w') as f:
             json.dump(config, f)
 
-        with patch('lib.config.CONFIG_FILE', config_path):
+        with patch('ddi_toolkit.config.CONFIG_FILE', config_path):
             assert is_configured() is False
 
     def test_is_configured_missing_password(self, tmp_path):
@@ -141,5 +141,5 @@ class TestIsConfigured:
         with open(config_path, 'w') as f:
             json.dump(config, f)
 
-        with patch('lib.config.CONFIG_FILE', config_path):
+        with patch('ddi_toolkit.config.CONFIG_FILE', config_path):
             assert is_configured() is False

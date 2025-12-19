@@ -78,11 +78,14 @@ echo -e "\n${BOLD}[3/4] Installing Python dependencies...${NC}"
 source "$VENV_DIR/bin/activate"
 pip install --quiet --upgrade pip
 
-if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
+if [ -f "$SCRIPT_DIR/pyproject.toml" ]; then
+    pip install --quiet -e "$SCRIPT_DIR"
+    echo -e "  ${GREEN}[OK]${NC} Dependencies and package installed"
+elif [ -f "$SCRIPT_DIR/requirements.txt" ]; then
     pip install --quiet -r "$SCRIPT_DIR/requirements.txt"
     echo -e "  ${GREEN}[OK]${NC} Dependencies installed"
 else
-    echo -e "${RED}  Error: requirements.txt not found${NC}"
+    echo -e "${RED}  Error: pyproject.toml or requirements.txt not found${NC}"
     exit 1
 fi
 

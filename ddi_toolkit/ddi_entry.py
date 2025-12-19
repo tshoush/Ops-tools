@@ -131,7 +131,3 @@ def main():
         # Show main menu
         from ddi_toolkit.ui.menu import run_interactive
         run_interactive()
-
-
-if __name__ == "__main__":
-    main()

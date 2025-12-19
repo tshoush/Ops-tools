@@ -11,7 +11,7 @@ from unittest.mock import patch, Mock
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.output import OutputWriter, flatten_dict, write_output
+from ddi_toolkit.output import OutputWriter, flatten_dict, write_output
 
 
 class TestFlattenDict:
@@ -91,14 +91,14 @@ class TestOutputWriter:
         """Test writer creates output directory."""
         output_dir = tmp_path / "output"
 
-        with patch('lib.output.load_config', return_value=mock_output_config):
+        with patch('ddi_toolkit.output.load_config', return_value=mock_output_config):
             writer = OutputWriter("test", "query")
 
             assert output_dir.exists()
 
     def test_writer_write_json(self, mock_output_config, tmp_path):
         """Test writing JSON output."""
-        with patch('lib.output.load_config', return_value=mock_output_config):
+        with patch('ddi_toolkit.output.load_config', return_value=mock_output_config):
             writer = OutputWriter("test", "query", quiet=True)
             result = writer.write({"key": "value"})
 
@@ -115,7 +115,7 @@ class TestOutputWriter:
 
     def test_writer_write_csv(self, mock_output_config, tmp_path):
         """Test writing CSV output."""
-        with patch('lib.output.load_config', return_value=mock_output_config):
+        with patch('ddi_toolkit.output.load_config', return_value=mock_output_config):
             writer = OutputWriter("test", "query", quiet=True)
             result = writer.write({"key": "value", "num": 123})
 
@@ -138,7 +138,7 @@ class TestOutputWriter:
             {"name": "item2", "value": 2}
         ]
 
-        with patch('lib.output.load_config', return_value=mock_output_config):
+        with patch('ddi_toolkit.output.load_config', return_value=mock_output_config):
             writer = OutputWriter("test", "query", quiet=True)
             result = writer.write(records)
 
@@ -153,7 +153,7 @@ class TestOutputWriter:
 
     def test_writer_sanitize_filename(self, mock_output_config, tmp_path):
         """Test filename sanitization."""
-        with patch('lib.output.load_config', return_value=mock_output_config):
+        with patch('ddi_toolkit.output.load_config', return_value=mock_output_config):
             writer = OutputWriter("test", "10.20.30.0/24", quiet=True)
 
             # Should handle slashes in query
@@ -169,7 +169,7 @@ class TestOutputWriter:
             }
         }
 
-        with patch('lib.output.load_config', return_value=config):
+        with patch('ddi_toolkit.output.load_config', return_value=config):
             writer = OutputWriter("test", "query", quiet=True)
             result = writer.write({"data": "test"})
 
@@ -179,7 +179,7 @@ class TestOutputWriter:
 
     def test_writer_empty_results(self, mock_output_config, tmp_path):
         """Test writing empty results."""
-        with patch('lib.output.load_config', return_value=mock_output_config):
+        with patch('ddi_toolkit.output.load_config', return_value=mock_output_config):
             writer = OutputWriter("test", "query", quiet=True)
             result = writer.write([])
 
@@ -202,7 +202,7 @@ class TestWriteOutputFunction:
             }
         }
 
-        with patch('lib.output.load_config', return_value=config):
+        with patch('ddi_toolkit.output.load_config', return_value=config):
             result = write_output(
                 command="test",
                 query="query",

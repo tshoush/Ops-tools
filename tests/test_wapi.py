@@ -11,7 +11,7 @@ import requests
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.wapi import WAPIClient, WAPIError, get_client, reset_client
+from ddi_toolkit.wapi import WAPIClient, WAPIError, get_client, reset_client
 
 
 class TestWAPIClient:
@@ -31,7 +31,7 @@ class TestWAPIClient:
 
     def test_init_success(self, mock_credentials):
         """Test successful client initialization."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             assert client.base_url == "https://192.168.1.100/wapi/v2.13.1"
@@ -43,7 +43,7 @@ class TestWAPIClient:
         """Test initialization fails with missing credentials."""
         missing_creds = ("", "", "", "2.13.1", False, 30)
 
-        with patch('lib.wapi.get_infoblox_creds', return_value=missing_creds):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=missing_creds):
             with pytest.raises(WAPIError) as exc_info:
                 WAPIClient()
 
@@ -51,7 +51,7 @@ class TestWAPIClient:
 
     def test_get_success(self, mock_credentials, mock_network_response):
         """Test successful GET request."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             mock_response = Mock()
@@ -67,7 +67,7 @@ class TestWAPIClient:
 
     def test_get_auth_failure(self, mock_credentials):
         """Test GET request with authentication failure."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             mock_response = Mock()
@@ -83,7 +83,7 @@ class TestWAPIClient:
 
     def test_get_not_found(self, mock_credentials):
         """Test GET request returns empty list on 404."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             mock_response = Mock()
@@ -96,7 +96,7 @@ class TestWAPIClient:
 
     def test_get_connection_error(self, mock_credentials):
         """Test GET request with connection error."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             with patch.object(client.session, 'request',
@@ -108,7 +108,7 @@ class TestWAPIClient:
 
     def test_get_timeout(self, mock_credentials):
         """Test GET request with timeout."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             with patch.object(client.session, 'request',
@@ -120,7 +120,7 @@ class TestWAPIClient:
 
     def test_get_with_return_fields(self, mock_credentials):
         """Test GET request with return_fields."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             mock_response = Mock()
@@ -137,7 +137,7 @@ class TestWAPIClient:
 
     def test_test_connection_success(self, mock_credentials):
         """Test successful connection test."""
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_credentials):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_credentials):
             client = WAPIClient()
 
             mock_response = Mock()
@@ -159,7 +159,7 @@ class TestClientSingleton:
         reset_client()
 
         mock_creds = ("192.168.1.100", "admin", "password", "2.13.1", False, 30)
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_creds):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_creds):
             client = get_client()
             assert client is not None
 
@@ -168,7 +168,7 @@ class TestClientSingleton:
         reset_client()
 
         mock_creds = ("192.168.1.100", "admin", "password", "2.13.1", False, 30)
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_creds):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_creds):
             client1 = get_client()
             client2 = get_client()
             assert client1 is client2
@@ -176,7 +176,7 @@ class TestClientSingleton:
     def test_reset_client(self):
         """Test reset_client clears singleton."""
         mock_creds = ("192.168.1.100", "admin", "password", "2.13.1", False, 30)
-        with patch('lib.wapi.get_infoblox_creds', return_value=mock_creds):
+        with patch('ddi_toolkit.wapi.get_infoblox_creds', return_value=mock_creds):
             client1 = get_client()
             reset_client()
             client2 = get_client()

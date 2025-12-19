@@ -348,26 +348,177 @@ class MainMenu:
         self._run_command('dhcp', query_type, network=network, network_view=view, all_views=is_all)
 
     def _search(self):
-        """Global search."""
+        """Intelligent search with auto-detection and refinement."""
         if not self._ensure_configured():
             return
 
-        clear_screen()
-        print(header("\n  ═══ GLOBAL SEARCH ═══\n"))
+        while True:
+            clear_screen()
+            print(header("\n  ═══ INTELLIGENT SEARCH ═══\n"))
 
-        # Show current view setting
-        view, is_all = self._get_effective_view("network")
-        if is_all:
-            print(f"  {dim('View Mode: All Views')}\n")
+            # Show current view setting
+            view, is_all = self._get_effective_view("network")
+            if is_all:
+                print(f"  {dim('View Mode: All Views')}\n")
+            else:
+                print(f"  {dim(f'View: {view}')}\n")
+
+            # Show type prefix hint
+            print(f"  {dim('Prefixes: host: ptr: a: cname: zone: ip: mac: net: all:')}\n")
+
+            query = prompt_input(
+                "Enter search term",
+                hint="e.g., server.domain.com, 10.1.2.3, host:name"
+            )
+
+            if not query:
+                return
+
+            # Run the search and get result with detection info
+            result = self._run_intelligent_search(query, view, is_all)
+
+            if result is None:
+                return
+
+            # Show refinement options
+            action = self._show_search_refinement(result, query, view, is_all)
+
+            if action == "done" or action == "back":
+                return
+            elif action == "new":
+                continue  # Loop back for new search
+            # Other actions handled in _show_search_refinement
+
+    def _run_intelligent_search(self, query: str, view: str, is_all: bool):
+        """Run intelligent search and display results."""
+        from ..commands import get_command
+
+        print(f"\n  {dim('Analyzing input...')}")
+
+        try:
+            cmd_class = get_command('search')
+            if not cmd_class:
+                print(error("\n  Search command not found"))
+                input("\n  Press Enter to continue...")
+                return None
+
+            cmd = cmd_class()
+
+            # First, show what type was detected (before searching)
+            forced_type, clean_query = cmd._parse_type_prefix(query)
+            if forced_type:
+                if forced_type == "all":
+                    detected_type = "Full Search (all types)"
+                else:
+                    detected_type = f"Explicit: {forced_type}"
+            else:
+                detected_type, _ = cmd._detect_input_type(clean_query)
+                type_labels = {
+                    "ip_address": "IP Address",
+                    "cidr": "CIDR Network",
+                    "mac_address": "MAC Address",
+                    "fqdn": "Hostname/FQDN",
+                    "zone": "Zone/Domain",
+                    "text": "Generic Text"
+                }
+                detected_type = type_labels.get(detected_type, detected_type)
+
+            print(f"  Detected: {bold(detected_type)}")
+            print(f"  {dim('Searching...')}\n")
+
+            result = cmd.run(query, quiet=False, network_view=view, all_views=is_all)
+
+            if isinstance(result, dict) and result.get("error"):
+                print(error(f"\n  {result.get('error')}"))
+                input("\n  Press Enter to continue...")
+                return None
+
+            return result
+
+        except Exception as e:
+            print(error(f"\n  Error: {e}"))
+            input("\n  Press Enter to continue...")
+            return None
+
+    def _show_search_refinement(self, result: dict, query: str, view: str, is_all: bool) -> str:
+        """Show search results with refinement options."""
+        data = result.get("data", result)
+        stats = data.get("statistics", {})
+        total = stats.get("total_results", 0)
+        zone_hint = data.get("zone_hint")
+        suggestions = data.get("suggestions", [])
+
+        if total == 0:
+            # No results - offer alternatives
+            print(f"\n  {warning('No results found.')}\n")
+
+            if suggestions:
+                print(f"  {dim('Suggestions:')}")
+                for s in suggestions:
+                    print(f"    {dim(s)}")
+                print()
+
+            print(f"  {dim('[N] New search  [B] Back to menu')}\n")
+
+            choice = input(f"  {bold('Select option')}: ").strip().upper()
+
+            if choice == 'N':
+                return "new"
+            else:
+                return "back"
+
+        # Results found - show refinement options
+        print()
+        options = ["[Enter] Done"]
+
+        # Add PTR option if IP was searched
+        detected_type = data.get("detected_type", "")
+        if detected_type == "ip_address" and "ptr_records" not in data.get("results", {}):
+            options.append("[P] PTR lookup")
+
+        # Add zone info option if FQDN was searched
+        if zone_hint and detected_type == "fqdn":
+            options.append(f"[Z] Zone info ({zone_hint})")
+
+        # Always offer expand and new search
+        options.append("[E] Expand search")
+        options.append("[N] New search")
+
+        print(f"  {dim('  '.join(options))}\n")
+
+        choice = input(f"  {bold('Select option')}: ").strip().upper()
+
+        if choice == 'P':
+            # Do PTR lookup
+            self._do_ptr_lookup(query, view, is_all)
+            return "done"
+        elif choice == 'Z' and zone_hint:
+            # Zone info lookup
+            self._do_zone_lookup(zone_hint, view, is_all)
+            return "done"
+        elif choice == 'E':
+            # Expand search
+            self._do_expand_search(query, view, is_all)
+            return "done"
+        elif choice == 'N':
+            return "new"
         else:
-            print(f"  {dim(f'View: {view}')}\n")
+            return "done"
 
-        query = prompt_input(
-            "Search Term",
-            hint="Searches networks, IPs, zones, records, MACs..."
-        )
+    def _do_ptr_lookup(self, query: str, view: str, is_all: bool):
+        """Perform PTR record lookup."""
+        print(f"\n  {dim('Looking up PTR records...')}\n")
+        self._run_command('search', f"ptr:{query}", network_view=view, all_views=is_all)
 
-        self._run_command('search', query, network_view=view, all_views=is_all)
+    def _do_zone_lookup(self, zone: str, view: str, is_all: bool):
+        """Perform zone lookup."""
+        print(f"\n  {dim(f'Looking up zone info for {zone}...')}\n")
+        self._run_command('zone', zone, dns_view=view, all_views=is_all)
+
+    def _do_expand_search(self, query: str, view: str, is_all: bool):
+        """Expand search to all types."""
+        print(f"\n  {dim('Expanding search to all types...')}\n")
+        self._run_command('search', f"all:{query}", network_view=view, all_views=is_all)
 
     def _select_network_view(self):
         """Network view selection submenu."""

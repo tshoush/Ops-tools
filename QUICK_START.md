@@ -141,8 +141,12 @@ For scripts and automation, use `-q` or `--quiet`:
 # Query DHCP leases for a network
 ./ddi -q dhcp leases --network 10.20.30.0/24
 
-# Global search
-./ddi -q search "web-server"
+# Intelligent search (auto-detects input type)
+./ddi -q search "web-server.example.com"
+
+# Search with type prefix
+./ddi -q search "host:web-server"
+./ddi -q search "ptr:10.20.30.40"
 ```
 
 ### Using in Scripts
@@ -181,7 +185,7 @@ done
 | `dhcp ranges` | Query DHCP pools | `./ddi -q dhcp ranges` |
 | `dhcp leases` | Query active leases | `./ddi -q dhcp leases --network 10.0.0.0/24` |
 | `dhcp failover` | Query failover status | `./ddi -q dhcp failover` |
-| `search` | Global search | `./ddi -q search "server"` |
+| `search` | Intelligent search | `./ddi -q search "server.example.com"` |
 
 ---
 

@@ -9,7 +9,7 @@ from unittest.mock import patch, Mock
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.network_view import (
+from ddi_toolkit.network_view import (
     get_network_views,
     get_network_view_names,
     get_default_network_view,
@@ -55,7 +55,7 @@ class TestGetNetworkViews:
         mock_client = Mock()
         mock_client.get = Mock(return_value=mock_network_views)
 
-        with patch('lib.network_view.get_client', return_value=mock_client):
+        with patch('ddi_toolkit.network_view.get_client', return_value=mock_client):
             views = get_network_views()
 
             assert len(views) == 3
@@ -68,7 +68,7 @@ class TestGetNetworkViews:
         mock_client = Mock()
         mock_client.get = Mock(return_value=mock_network_views)
 
-        with patch('lib.network_view.get_client', return_value=mock_client):
+        with patch('ddi_toolkit.network_view.get_client', return_value=mock_client):
             names = get_network_view_names()
 
             assert len(names) == 3
@@ -81,7 +81,7 @@ class TestGetNetworkViews:
         mock_client = Mock()
         mock_client.get = Mock(return_value=mock_network_views)
 
-        with patch('lib.network_view.get_client', return_value=mock_client):
+        with patch('ddi_toolkit.network_view.get_client', return_value=mock_client):
             default = get_default_network_view()
 
             assert default == "default"
@@ -94,7 +94,7 @@ class TestGetNetworkViews:
             {"name": "view2", "is_default": False}
         ])
 
-        with patch('lib.network_view.get_client', return_value=mock_client):
+        with patch('ddi_toolkit.network_view.get_client', return_value=mock_client):
             default = get_default_network_view()
 
             assert default == "default"
@@ -126,7 +126,7 @@ class TestGetDNSViews:
         mock_client = Mock()
         mock_client.get = Mock(return_value=mock_dns_views)
 
-        with patch('lib.network_view.get_client', return_value=mock_client):
+        with patch('ddi_toolkit.network_view.get_client', return_value=mock_client):
             views = get_dns_views()
 
             assert len(views) == 2
@@ -137,7 +137,7 @@ class TestGetDNSViews:
         mock_client = Mock()
         mock_client.get = Mock(return_value=mock_dns_views)
 
-        with patch('lib.network_view.get_client', return_value=mock_client):
+        with patch('ddi_toolkit.network_view.get_client', return_value=mock_client):
             names = get_dns_view_names()
 
             assert len(names) == 2
